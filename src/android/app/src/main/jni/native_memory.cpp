@@ -77,19 +77,6 @@ std::vector<RegionSpan> CurrentRegionSpans(Core::System& system) {
     return spans;
 }
 
-/// Finds the region that contains the address. Falls back to Absolute, which is correct for
-/// the main NSO text/rodata, as those are not randomized.
-Tools::FreezeRegion RegionContaining(Core::System& system, VAddr address, VAddr& out_base) {
-    for (const auto& span : CurrentRegionSpans(system)) {
-        if (address >= span.base && address < span.base + span.size) {
-            out_base = span.base;
-            return span.region;
-        }
-    }
-    out_base = 0;
-    return Tools::FreezeRegion::Absolute;
-}
-
 /// Converts a stored entry address back to an absolute one, honouring its region anchor.
 VAddr AbsoluteAddressOf(Core::System& system, const Tools::Freezer::Entry& entry) {
     if (entry.region == Tools::FreezeRegion::Absolute) {
@@ -177,6 +164,7 @@ public:
             if (generation != my_generation) {
                 return;
             }
+            truncated = found.size() >= Tools::MemoryScanner::MAX_RESULTS;
             results = std::move(found);
             running = false;
         });
@@ -239,6 +227,7 @@ public:
         done = 0;
         total = 0;
         cancelled = false;
+        truncated = false;
     }
 
     void WaitForWorker() {
@@ -276,6 +265,11 @@ public:
         return results.size();
     }
 
+    bool Truncated() {
+        std::scoped_lock lock{mutex};
+        return truncated;
+    }
+
     std::vector<VAddr> Snapshot(jint offset, jint count) {
         std::scoped_lock lock{mutex};
         std::vector<VAddr> slice;
@@ -304,6 +298,7 @@ private:
     bool running{};
     bool cancel{};
     bool cancelled{};
+    bool truncated{};
     u64 done{};
     u64 total{};
     u64 generation{};
@@ -461,8 +456,6 @@ jstring Java_org_citron_citron_1emu_NativeLibrary_memGetRegions(JNIEnv* env, job
 
     add("main", GetInteger(page_table.GetAliasCodeRegionStart()),
         page_table.GetAliasCodeRegionSize());
-    add("heap", GetInteger(page_table.GetHeapRegionStart()), page_table.GetHeapRegionSize());
-    add("alias", GetInteger(page_table.GetAliasRegionStart()), page_table.GetAliasRegionSize());
 
     return Common::Android::ToJString(env, regions.dump());
 }
@@ -494,6 +487,10 @@ void Java_org_citron_citron_1emu_NativeLibrary_memScanCancel(JNIEnv* env, jobjec
 
 jint Java_org_citron_citron_1emu_NativeLibrary_memScanCount(JNIEnv* env, jobject jobj) {
     return static_cast<jint>(MemoryScanSession::GetInstance().Count());
+}
+
+jboolean Java_org_citron_citron_1emu_NativeLibrary_memScanIsTruncated(JNIEnv* env, jobject jobj) {
+    return MemoryScanSession::GetInstance().Truncated() ? JNI_TRUE : JNI_FALSE;
 }
 
 jlongArray Java_org_citron_citron_1emu_NativeLibrary_memScanResults(JNIEnv* env, jobject jobj,
@@ -630,14 +627,17 @@ jboolean Java_org_citron_citron_1emu_NativeLibrary_memFreezeSet(JNIEnv* env, job
 
     freezer->FreezeAt(address, type, value, description);
 
-    // Anchor the entry to the region that contains it, so a saved table can be relocated onto
-    // a different address space layout next boot.
-    VAddr base = 0;
-    const auto region = RegionContaining(system, address, base);
-    freezer->SetEntryRegion(address, region, system.GetFreezeRegionBases());
-
+    // Keep the entry's absolute address verbatim. Relocating it into a region offset here
+    // would make FrameCallback write to the wrong address (it uses entry.address directly
+    // without converting back), which is why frozen values appeared to do nothing.
     freezer->SetEntryEnabled(address, jenabled != 0);
-    freezer->SetActive(true);
+
+    // Only start the per-frame freezer when at least one entry is actually enabled.
+    // A freshly added address should be written once and then left alone until the user
+    // explicitly checks the freeze box.
+    if (jenabled != 0) {
+        freezer->SetActive(true);
+    }
     return JNI_TRUE;
 }
 

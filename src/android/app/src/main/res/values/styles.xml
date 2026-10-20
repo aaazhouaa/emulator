@@ -33,16 +33,17 @@
         <item name="rippleColor">@color/citron_inversePrimary</item>
     </style>
 
-    <!-- Full-screen tool surface used by the memory editor. -->
-    <style name="ThemeOverlay_Citron_FullScreenDialog" parent="ThemeOverlay.Material3.MaterialAlertDialog">
-        <item name="android:windowIsFloating">false</item>
-        <item name="android:windowBackground">?attr/colorSurface</item>
-        <item name="android:windowMinWidthMajor">100%</item>
-        <item name="android:windowMinWidthMinor">100%</item>
+    <!-- Left-hand side panel used by the memory editor. -->
+    <style name="ThemeOverlay_Citron_SidePanel" parent="ThemeOverlay.Material3.MaterialAlertDialog">
+        <item name="android:windowIsFloating">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
         <item name="android:backgroundDimEnabled">false</item>
-        <item name="colorPrimary">@color/citron_primaryContainer</item>
-        <item name="colorSurface">@color/citron_primaryContainer</item>
-        <item name="colorSecondary">@color/citron_primary</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="colorPrimary">@color/citron_primary</item>
+        <item name="colorOnPrimary">@color/citron_onPrimary</item>
+        <item name="colorSurface">@color/citron_surface</item>
+        <item name="colorOnSurface">@color/citron_onSurface</item>
+        <item name="colorSecondary">@color/citron_secondary</item>
         <item name="android:textColorLink">@color/citron_primary</item>
     </style>
 

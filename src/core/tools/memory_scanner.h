@@ -75,7 +75,10 @@ struct ScanParams {
 class MemoryScanner {
 public:
     /// Upper bound on retained candidates, to keep the public result list bounded.
-    static constexpr std::size_t MAX_RESULTS = 100000;
+    /// Must be large enough that a 1-byte scan over a ~1 GB code region does not truncate
+    /// before the real target is reached (1/256 hit rate would otherwise clip at a few
+    /// hundred thousand and make "next scan" return zero).
+    static constexpr std::size_t MAX_RESULTS = 5000000;
 
     /// Number of bytes read per step. Must stay a multiple of 8 so that every
     /// scan width can be stepped without straddling a chunk boundary.

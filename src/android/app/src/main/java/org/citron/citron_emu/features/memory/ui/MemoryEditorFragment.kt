@@ -5,6 +5,7 @@ package org.citron.citron_emu.features.memory.ui
 
 import android.app.Dialog
 import android.os.Bundle
+import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -35,7 +36,7 @@ import org.citron.citron_emu.features.memory.model.MemValueType
 import org.citron.citron_emu.utils.ViewUtils.setVisible
 
 /**
- * Full-screen memory editor: value scanning, result refinement, and a frozen address table.
+ * Side-panel memory editor: value scanning, result refinement, and a frozen address table.
  *
  * Emulation is paused by the caller while this is open, but the freezer keeps enforcing
  * values because it runs on the core timing thread, not the UI thread.
@@ -50,9 +51,11 @@ class MemoryEditorFragment : DialogFragment() {
     private lateinit var scanAdapter: ScanResultAdapter
     private lateinit var freezeAdapter: FreezeEntryAdapter
 
-    private var selectedRegions: List<MemRegion> = emptyList()
+    private var scanRegion: MemRegion? = null
     private var selectedTypes: List<MemValueType> = MemValueType.scanTypes
-    private val selectedCompares = MemCompare.entries
+
+    /** Whether the single value field is asking for the next-scan value. */
+    private var refineModeActive = false
 
     private var gameProgramId: String = ""
 
@@ -60,8 +63,8 @@ class MemoryEditorFragment : DialogFragment() {
         super.onCreate(savedInstanceState)
         val args = requireArguments()
         gameProgramId = args.getString(ARG_PROGRAM_ID).orEmpty()
-        // Full-screen, no dimmed dialog box: this is a tool surface, not a prompt.
-        setStyle(STYLE_NO_TITLE, R.style.ThemeOverlay_Citron_FullScreenDialog)
+        // Left-hand side panel matching the in-game drawer.
+        setStyle(STYLE_NO_TITLE, R.style.ThemeOverlay_Citron_SidePanel)
     }
 
     @Suppress("DEPRECATION")
@@ -69,6 +72,21 @@ class MemoryEditorFragment : DialogFragment() {
         return Dialog(requireContext(), theme).apply {
             window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        val window = dialog?.window ?: return
+        val metrics = resources.displayMetrics
+        val params = window.attributes
+        params.width = (metrics.widthPixels * WINDOW_WIDTH_RATIO).toInt()
+        params.height = WindowManager.LayoutParams.MATCH_PARENT
+        params.gravity = Gravity.START or Gravity.TOP
+        window.attributes = params
+        window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+        // Let the panel draw under the status bar so the content starts at the very top.
+        window.decorView.systemUiVisibility =
+            View.SYSTEM_UI_FLAG_LAYOUT_STABLE or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
     }
 
     override fun onCreateView(
@@ -82,8 +100,6 @@ class MemoryEditorFragment : DialogFragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-
-        binding.memoryEditorToolbar.setNavigationOnClickListener { dismiss() }
 
         scanAdapter = ScanResultAdapter { address -> promptAddToTable(address) }
         binding.memoryEditorScanPanel.memScanResults.apply {
@@ -137,38 +153,39 @@ class MemoryEditorFragment : DialogFragment() {
                 selectedTypes.map { describeType(it) }
             )
         )
-        panel.memScanType.setText(describeType(selectedTypes.first()), false)
+        val savedType = selectedTypes.firstOrNull { it.id == viewModel.selectedTypeId }
+            ?: selectedTypes.first()
+        panel.memScanType.setText(describeType(savedType), false)
 
-        panel.memScanCompare.setAdapter(
-            ArrayAdapter(
-                requireContext(),
-                android.R.layout.simple_list_item_1,
-                selectedCompares.map { describeCompare(it) }
-            )
-        )
-        panel.memScanCompare.setText(describeCompare(selectedCompares.first()), false)
-
-        panel.memScanRegion.setAdapter(
-            ArrayAdapter(
-                requireContext(),
-                android.R.layout.simple_list_item_1,
-                listOf(requireContext().getString(R.string.mem_scan_idle))
-            )
-        )
-
-        // Re-render the hint as the type changes so the expected input format is obvious.
+        // Re-render the hint as the type changes and persist the pick immediately.
         panel.memScanType.doAfterTextChanged {
-            val type = currentType()
-            panel.memScanValueLayout.hint = when {
-                type.isPattern -> requireContext().getString(R.string.mem_scan_value_pattern)
-                type.isFloat -> requireContext().getString(R.string.mem_scan_value_float)
-                else -> requireContext().getString(R.string.mem_scan_value)
-            }
+            updateValueHint()
+            viewModel.selectedTypeId = currentType().id
         }
 
         panel.memScanFirst.setOnClickListener { startFirstScan() }
         panel.memScanNext.setOnClickListener { refineScan() }
         panel.memScanReset.setOnClickListener { viewModel.clearResults() }
+    }
+
+    private fun updateValueHint() {
+        val panel = binding.memoryEditorScanPanel
+        val type = currentType()
+        panel.memScanValueLayout.hint = when {
+            refineModeActive -> requireContext().getString(R.string.mem_scan_new_value)
+            type.isPattern -> requireContext().getString(R.string.mem_scan_value_pattern)
+            type.isFloat -> requireContext().getString(R.string.mem_scan_value_float)
+            else -> requireContext().getString(R.string.mem_scan_value)
+        }
+    }
+
+    private fun setRefineMode(active: Boolean) {
+        refineModeActive = active
+        val panel = binding.memoryEditorScanPanel
+        panel.memScanFirst.setVisible(visible = !active, gone = true)
+        panel.memScanNext.setVisible(visible = active, gone = true)
+        panel.memScanReset.setVisible(visible = active, gone = true)
+        updateValueHint()
     }
 
     private fun setupTableControls() {
@@ -178,19 +195,11 @@ class MemoryEditorFragment : DialogFragment() {
         panel.memTableClear.setOnClickListener { confirmClearTable() }
     }
 
-    private fun currentRegion(): MemRegion? {
-        val index = selectedRegions.indexOfFirst { it.name == binding.memoryEditorScanPanel.memScanRegion.text.toString() || regionLabel(it) == binding.memoryEditorScanPanel.memScanRegion.text.toString() }
-        return if (index >= 0) selectedRegions[index] else null
-    }
+    private fun currentRegion(): MemRegion? = scanRegion
 
     private fun currentType(): MemValueType {
         val label = binding.memoryEditorScanPanel.memScanType.text.toString()
         return selectedTypes.firstOrNull { describeType(it) == label } ?: MemValueType.U32
-    }
-
-    private fun currentCompare(): MemCompare {
-        val label = binding.memoryEditorScanPanel.memScanCompare.text.toString()
-        return selectedCompares.firstOrNull { describeCompare(it) == label } ?: MemCompare.EXACT
     }
 
     private fun startFirstScan() {
@@ -221,21 +230,15 @@ class MemoryEditorFragment : DialogFragment() {
 
     private fun refineScan() {
         val type = currentType()
-        val compare = currentCompare()
 
-        // The change comparisons need no value, so only parse when one is actually used.
-        val value = if (compare.needsHistory) {
-            0L
-        } else {
-            val text = binding.memoryEditorScanPanel.memScanValue.text?.toString().orEmpty()
-            viewModel.parseInput(type, text) ?: run {
-                binding.memoryEditorScanPanel.memScanValueLayout.error =
-                    getString(R.string.mem_invalid_value)
-                return
-            }
+        val text = binding.memoryEditorScanPanel.memScanValue.text?.toString().orEmpty()
+        val value = viewModel.parseInput(type, text) ?: run {
+            binding.memoryEditorScanPanel.memScanValueLayout.error =
+                getString(R.string.mem_invalid_value)
+            return
         }
         binding.memoryEditorScanPanel.memScanValueLayout.error = null
-        viewModel.refine(type, compare, value, FLOAT_EPSILON)
+        viewModel.refine(type, MemCompare.EXACT, value, FLOAT_EPSILON)
     }
 
     private fun promptAddToTable(address: Long) {
@@ -345,25 +348,19 @@ class MemoryEditorFragment : DialogFragment() {
     }
 
     private fun onRegionsChanged(regions: List<MemRegion>) {
-        selectedRegions = regions
-        val panel = binding.memoryEditorScanPanel
-        val labels = regions.map { regionLabel(it) }
-        panel.memScanRegion.setAdapter(
-            ArrayAdapter(requireContext(), android.R.layout.simple_list_item_1, labels)
-        )
-        if (labels.isNotEmpty()) {
-            panel.memScanRegion.setText(labels.first(), false)
-        } else {
-            panel.memScanRegion.setText(getString(R.string.mem_scan_idle), false)
-        }
+        // Native now reports only the main code+data region; just record it for scanning.
+        scanRegion = regions.firstOrNull()
     }
 
     private fun renderStatus(status: MemoryEditorViewModel.ScanStatus) {
         val panel = binding.memoryEditorScanPanel
         val running = status is MemoryEditorViewModel.ScanStatus.Running
         panel.memScanProgress.setVisible(running)
-        panel.memScanFirst.isEnabled = !running
-        panel.memScanNext.isEnabled = !running
+
+        // Show First scan only when there are no candidates yet; otherwise show Next scan + Reset.
+        val hasResults = status is MemoryEditorViewModel.ScanStatus.Done ||
+            status is MemoryEditorViewModel.ScanStatus.Cancelled
+        setRefineMode(hasResults)
 
         panel.memScanStatus.text = when (status) {
             is MemoryEditorViewModel.ScanStatus.Idle ->
@@ -398,24 +395,20 @@ class MemoryEditorFragment : DialogFragment() {
         }
     }
 
-    private fun regionLabel(region: MemRegion): String = when (region.name) {
-        "main" -> getString(R.string.mem_region_main)
-        "heap" -> getString(R.string.mem_region_heap)
-        "alias" -> getString(R.string.mem_region_alias)
-        else -> region.name
-    }
-
-    private fun describeType(type: MemValueType): String = type.id.uppercase()
-
-    private fun describeCompare(compare: MemCompare): String = getString(
-        when (compare) {
-            MemCompare.EXACT -> R.string.mem_compare_exact
-            MemCompare.GREATER -> R.string.mem_compare_greater
-            MemCompare.LESS -> R.string.mem_compare_less
-            MemCompare.CHANGED -> R.string.mem_compare_changed
-            MemCompare.UNCHANGED -> R.string.mem_compare_unchanged
-            MemCompare.INCREASED -> R.string.mem_compare_increased
-            MemCompare.DECREASED -> R.string.mem_compare_decreased
+    private fun describeType(type: MemValueType): String = getString(
+        when (type) {
+            MemValueType.U32 -> R.string.mem_type_u32
+            MemValueType.F32 -> R.string.mem_type_f32
+            MemValueType.U16 -> R.string.mem_type_u16
+            MemValueType.U8 -> R.string.mem_type_u8
+            MemValueType.U64 -> R.string.mem_type_u64
+            MemValueType.S32 -> R.string.mem_type_s32
+            MemValueType.F64 -> R.string.mem_type_f64
+            MemValueType.S16 -> R.string.mem_type_s16
+            MemValueType.S8 -> R.string.mem_type_s8
+            MemValueType.S64 -> R.string.mem_type_s64
+            MemValueType.STRING -> R.string.mem_type_str
+            MemValueType.AOB -> R.string.mem_type_aob
         }
     )
 
@@ -438,6 +431,7 @@ class MemoryEditorFragment : DialogFragment() {
         const val REQUEST_KEY = "MemoryEditorFragment.result"
         private const val ARG_PROGRAM_ID = "programId"
         private const val FLOAT_EPSILON = 0.001
+        private const val WINDOW_WIDTH_RATIO = 0.4f
 
         fun newInstance(programId: String): MemoryEditorFragment {
             val fragment = MemoryEditorFragment()

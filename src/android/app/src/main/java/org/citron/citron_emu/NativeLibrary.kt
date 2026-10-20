@@ -561,6 +561,11 @@ object NativeLibrary {
     external fun memScanCount(): Int
 
     /**
+     * Returns true when the last scan stopped early because it hit the result cap.
+     */
+    external fun memScanIsTruncated(): Boolean
+
+    /**
      * Copies a page of scan results.
      *
      * @param offset Index of the first result to copy.

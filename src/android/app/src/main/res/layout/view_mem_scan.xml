@@ -1,138 +1,107 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:paddingHorizontal="16dp"
-    android:paddingTop="12dp">
-
-    <!-- Region -->
-    <com.google.android.material.textfield.TextInputLayout
-        android:id="@+id/mem_scan_region_layout"
-        style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:hint="@string/mem_scan_region">
-
-        <com.google.android.material.textfield.MaterialAutoCompleteTextView
-            android:id="@+id/mem_scan_region"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:inputType="none" />
-
-    </com.google.android.material.textfield.TextInputLayout>
-
-    <!-- Type -->
-    <com.google.android.material.textfield.TextInputLayout
-        android:id="@+id/mem_scan_type_layout"
-        style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:hint="@string/mem_scan_type">
-
-        <com.google.android.material.textfield.MaterialAutoCompleteTextView
-            android:id="@+id/mem_scan_type"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:inputType="none" />
-
-    </com.google.android.material.textfield.TextInputLayout>
-
-    <!-- Value -->
-    <com.google.android.material.textfield.TextInputLayout
-        android:id="@+id/mem_scan_value_layout"
-        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:hint="@string/mem_scan_value">
-
-        <com.google.android.material.textfield.TextInputEditText
-            android:id="@+id/mem_scan_value"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:inputType="text|textNoSuggestions"
-            android:singleLine="true" />
-
-    </com.google.android.material.textfield.TextInputLayout>
-
-    <!-- Comparison for the second pass -->
-    <com.google.android.material.textfield.TextInputLayout
-        android:id="@+id/mem_scan_compare_layout"
-        style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:hint="@string/mem_scan_compare">
-
-        <com.google.android.material.textfield.MaterialAutoCompleteTextView
-            android:id="@+id/mem_scan_compare"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:inputType="none" />
-
-    </com.google.android.material.textfield.TextInputLayout>
+    android:fillViewport="false"
+    android:overScrollMode="never"
+    android:scrollbars="none">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        android:orientation="horizontal">
+        android:orientation="vertical"
+        android:paddingHorizontal="12dp"
+        android:paddingTop="4dp"
+        android:paddingBottom="12dp">
+
+        <!-- Type -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/mem_scan_type_layout"
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:hint="@string/mem_scan_type">
+
+            <com.google.android.material.textfield.MaterialAutoCompleteTextView
+                android:id="@+id/mem_scan_type"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="none" />
+
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- Value -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/mem_scan_value_layout"
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:hint="@string/mem_scan_value">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/mem_scan_value"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="text|textNoSuggestions"
+                android:singleLine="true" />
+
+        </com.google.android.material.textfield.TextInputLayout>
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/mem_scan_first"
-            android:layout_width="0dp"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
+            android:layout_marginTop="8dp"
             android:text="@string/mem_scan_first" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/mem_scan_next"
             style="@style/Widget.Material3.Button.OutlinedButton"
-            android:layout_width="0dp"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
-            android:layout_weight="1"
+            android:layout_marginTop="8dp"
+            android:visibility="gone"
             android:text="@string/mem_scan_next" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/mem_scan_reset"
             style="@style/Widget.Material3.Button.TextButton"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginStart="4dp"
+            android:visibility="gone"
             android:text="@string/mem_scan_reset" />
+
+        <com.google.android.material.progressindicator.LinearProgressIndicator
+            android:id="@+id/mem_scan_progress"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:visibility="gone"
+            app:trackCornerRadius="4dp" />
+
+        <com.google.android.material.textview.MaterialTextView
+            android:id="@+id/mem_scan_status"
+            style="@style/TextAppearance.Material3.BodySmall"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:textAlignment="viewStart"
+            tools:text="0 results" />
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/mem_scan_results"
+            android:layout_width="match_parent"
+            android:layout_height="200dp"
+            android:layout_marginTop="6dp"
+            android:clipToPadding="false"
+            android:nestedScrollingEnabled="false"
+            android:overScrollMode="never"
+            tools:listitem="@layout/list_item_scan_result" />
 
     </LinearLayout>
 
-    <com.google.android.material.progressindicator.LinearProgressIndicator
-        android:id="@+id/mem_scan_progress"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:visibility="gone"
-        app:trackCornerRadius="4dp" />
-
-    <com.google.android.material.textview.MaterialTextView
-        android:id="@+id/mem_scan_status"
-        style="@style/TextAppearance.Material3.BodySmall"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:textAlignment="viewStart"
-        tools:text="0 results" />
-
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/mem_scan_results"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_marginTop="8dp"
-        android:layout_weight="1"
-        android:clipToPadding="false"
-        android:paddingBottom="16dp"
-        tools:listitem="@layout/list_item_scan_result" />
-
-</LinearLayout>
+</ScrollView>

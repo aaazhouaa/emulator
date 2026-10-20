@@ -460,11 +460,10 @@ struct System::Impl {
             auto* freezer = system.GetFreezer();
             if (freezer != nullptr) {
                 freezer->LoadFromDisk(params.program_id, system.GetFreezeRegionBases());
-                // Frozen addresses are only useful if they are enforced; the per-entry
-                // enabled flag still lets a user park individual entries.
-                if (!freezer->GetEntries().empty()) {
-                    freezer->SetActive(true);
-                }
+                // Do NOT auto-activate. A saved entry whose address is stale (or points at a
+                // critical field) would be written into the guest during startup and can
+                // corrupt the boot / hang the game. The user re-enables entries from the
+                // memory editor when they are actually needed.
             }
         }
 

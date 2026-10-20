@@ -26,8 +26,13 @@ enum class MemValueType(val id: String, val width: Int) {
     val isFloat: Boolean get() = this == F32 || this == F64
 
     companion object {
-        /** Types offered for a first scan. */
-        val scanTypes: List<MemValueType> = entries
+        /**
+         * Types offered for a first scan, ordered by how commonly they are needed:
+         * 32-bit integer and float first, then smaller/larger integers, then rare cases.
+         */
+        val scanTypes: List<MemValueType> = listOf(
+            U32, F32, U16, U8, U64, S32, F64, S16, S8, S64, STRING, AOB
+        )
 
         /** Types a frozen entry can use; pattern types cannot be frozen. */
         val freezeTypes: List<MemValueType> = entries.filter { !it.isPattern }

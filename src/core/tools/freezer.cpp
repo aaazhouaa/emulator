@@ -171,27 +171,42 @@ void Freezer::FreezeAt(VAddr address, ScanType type, u64 value, std::string desc
         return;
     }
 
-    std::scoped_lock lock{entries_mutex};
+    {
+        std::scoped_lock lock{entries_mutex};
 
-    auto iter = FindEntry(address);
-    if (iter != entries.end()) {
-        iter->value = value;
-        iter->type = type;
-        iter->width = static_cast<u32>(width);
-        iter->enabled = true;
-        if (!description.empty()) {
-            iter->description = std::move(description);
+        auto iter = FindEntry(address);
+        if (iter != entries.end()) {
+            iter->value = value;
+            iter->type = type;
+            iter->width = static_cast<u32>(width);
+            iter->enabled = true;
+            if (!description.empty()) {
+                iter->description = std::move(description);
+            }
+            LOG_DEBUG(Common_Memory, "Updated frozen value for address={:016X} to {:016X}",
+                      address, value);
+        } else {
+            entries.push_back({address, static_cast<u32>(width), value, std::move(description),
+                               type, FreezeRegion::Absolute, true});
+            LOG_DEBUG(Common_Memory, "Freezing address={:016X}, width={:02X}, value={:016X}",
+                      address, width, value);
         }
-        LOG_DEBUG(Common_Memory, "Updated frozen value for address={:016X} to {:016X}", address,
-                  value);
-        return;
+        // The user just set the value explicitly; never let the first activation re-read
+        // memory and overwrite it.
+        entries_primed.store(true, std::memory_order_relaxed);
     }
 
-    entries.push_back({address, static_cast<u32>(width), value, std::move(description), type,
-                       FreezeRegion::Absolute, true});
-
-    LOG_DEBUG(Common_Memory, "Freezing address={:016X}, width={:02X}, value={:016X}", address,
-              width, value);
+    // Apply the value immediately so the user sees the result even while emulation is paused.
+    // The per-frame callback would otherwise only run once the game resumes.
+    auto* memory = CurrentMemory();
+    if (memory != nullptr && memory->IsValidVirtualAddress(Common::ProcessAddress(address))) {
+        try {
+            MemoryWriteWidth(*memory, static_cast<u32>(width), address, value);
+        } catch (...) {
+            LOG_DEBUG(Common_Memory, "Failed to apply freeze immediately at address={:016X}",
+                      address);
+        }
+    }
 }
 
 void Freezer::Unfreeze(VAddr address) {
@@ -214,20 +229,36 @@ bool Freezer::IsFrozen(VAddr address) const {
 }
 
 void Freezer::SetFrozenValue(VAddr address, u64 value) {
-    std::scoped_lock lock{entries_mutex};
+    u32 width = 4;
+    {
+        std::scoped_lock lock{entries_mutex};
 
-    const auto iter = FindEntry(address);
+        const auto iter = FindEntry(address);
+        if (iter == entries.cend()) {
+            LOG_ERROR(Common_Memory,
+                      "Tried to set freeze value for address={:016X} that is not frozen!",
+                      address);
+            return;
+        }
 
-    if (iter == entries.cend()) {
-        LOG_ERROR(Common_Memory,
-                  "Tried to set freeze value for address={:016X} that is not frozen!", address);
-        return;
+        width = iter->width;
+        LOG_DEBUG(Common_Memory,
+                  "Manually overridden freeze value for address={:016X}, width={:02X} to "
+                  "value={:016X}",
+                  iter->address, iter->width, value);
+        iter->value = value;
+        entries_primed.store(true, std::memory_order_relaxed);
     }
 
-    LOG_DEBUG(Common_Memory,
-              "Manually overridden freeze value for address={:016X}, width={:02X} to value={:016X}",
-              iter->address, iter->width, value);
-    iter->value = value;
+    // Apply immediately so the edit is visible even while emulation is paused.
+    auto* memory = CurrentMemory();
+    if (memory != nullptr && memory->IsValidVirtualAddress(Common::ProcessAddress(address))) {
+        try {
+            MemoryWriteWidth(*memory, width, address, value);
+        } catch (...) {
+            LOG_DEBUG(Common_Memory, "Failed to apply freeze edit at address={:016X}", address);
+        }
+    }
 }
 
 void Freezer::SetDescription(VAddr address, std::string description) {

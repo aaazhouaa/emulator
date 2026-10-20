@@ -3,7 +3,8 @@
 
 package org.citron.citron_emu.features.memory
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -13,6 +14,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.citron.citron_emu.NativeLibrary
+import org.citron.citron_emu.R
 import org.citron.citron_emu.features.memory.model.FreezeEntry
 import org.citron.citron_emu.features.memory.model.MemCompare
 import org.citron.citron_emu.features.memory.model.MemRegion
@@ -25,7 +27,9 @@ import org.json.JSONObject
  * All native calls are made on [Dispatchers.IO]. The scan itself runs on a native worker thread,
  * so this class only polls for progress and never blocks waiting for it.
  */
-class MemoryEditorViewModel : ViewModel() {
+class MemoryEditorViewModel(application: Application) : AndroidViewModel(application) {
+
+    private val context = application.applicationContext
 
     sealed interface ScanStatus {
         data object Idle : ScanStatus
@@ -52,6 +56,9 @@ class MemoryEditorViewModel : ViewModel() {
     val message = _message.asStateFlow()
 
     private var pollJob: Job? = null
+
+    /** Last value type picked by the user, so reopening the editor keeps it. */
+    var selectedTypeId: String? = null
 
     fun consumeMessage() {
         _message.value = null
@@ -112,6 +119,7 @@ class MemoryEditorViewModel : ViewModel() {
         if (_status.value is ScanStatus.Running) {
             return
         }
+        selectedTypeId = type.id
 
         val params = JSONObject().apply {
             put("begin", "%016X".format(region.base))
@@ -124,8 +132,11 @@ class MemoryEditorViewModel : ViewModel() {
             }
         }.toString()
 
+        _message.value = "首次扫描 region=${region.name} base=0x${region.base.toString(16)} size=0x${region.size.toString(16)} type=${type.id}"
+
         viewModelScope.launch {
             val result = withContext(Dispatchers.IO) { NativeLibrary.memScanStart(params) }
+            _message.value = "首次扫描 start 返回码=$result"
             if (result != NativeLibrary.MemScanResult.SUCCESS) {
                 _status.value = ScanStatus.Failed(scanErrorMessage(result))
                 return@launch
@@ -144,10 +155,13 @@ class MemoryEditorViewModel : ViewModel() {
             put("epsilon", epsilon)
         }.toString()
 
+        android.util.Log.d("MemoryEditor", "refine params=$params")
         viewModelScope.launch {
+            val countBefore = withContext(Dispatchers.IO) { NativeLibrary.memScanCount() }
             val result = withContext(Dispatchers.IO) { NativeLibrary.memScanRefine(params) }
+            val countAfter = withContext(Dispatchers.IO) { NativeLibrary.memScanCount() }
+            _message.value = "refine 码=$result 前=$countBefore 后=$countAfter 值=0x${value.toString(16)}"
             if (result != NativeLibrary.MemScanResult.SUCCESS) {
-                _message.value = refineErrorMessage(result)
                 return@launch
             }
             reloadResults()
@@ -160,6 +174,7 @@ class MemoryEditorViewModel : ViewModel() {
 
     fun clearResults() {
         pollJob?.cancel()
+        pollJob = null
         viewModelScope.launch {
             withContext(Dispatchers.IO) { NativeLibrary.memScanClear() }
             _results.value = emptyList()
@@ -173,7 +188,9 @@ class MemoryEditorViewModel : ViewModel() {
             while (true) {
                 val poll = withContext(Dispatchers.IO) { NativeLibrary.memScanPoll() }
                 if (poll.size < 3) {
-                    _status.value = ScanStatus.Failed("Scanner stopped responding")
+                    _status.value = ScanStatus.Failed(
+                        context.getString(R.string.mem_scan_failed_stopped)
+                    )
                     return@launch
                 }
                 val state = poll[0]
@@ -215,11 +232,22 @@ class MemoryEditorViewModel : ViewModel() {
         }
         _results.value = loaded
         _status.value = ScanStatus.Done(loaded.size)
+
+        // Tell the user when the scan hit the cap: the candidate list is incomplete and
+        // refining it will likely end up empty, so the honest next step is a narrower scan.
+        val truncated = withContext(Dispatchers.IO) { NativeLibrary.memScanIsTruncated() }
+        if (truncated) {
+            _message.value = context.getString(R.string.mem_scan_truncated)
+        }
     }
 
-    fun freeze(address: Long, type: MemValueType, value: Long, description: String) {        viewModelScope.launch {
+    fun freeze(address: Long, type: MemValueType, value: Long, description: String) {
+        viewModelScope.launch {
             withContext(Dispatchers.IO) {
-                NativeLibrary.memFreezeSet(address, type.id, value, description, true)
+                // Add the entry without enabling the freeze: it writes once, then stays
+                // parked until the user toggles the checkbox. Passing true would start the
+                // per-frame freezer and make it behave like an always-on freeze.
+                NativeLibrary.memFreezeSet(address, type.id, value, description, false)
                 NativeLibrary.memFreezeList()
             }.let { FreezeEntry.fromJson(it) }
                 .also { _freezeEntries.value = it }
@@ -270,15 +298,18 @@ class MemoryEditorViewModel : ViewModel() {
     fun saveTable(programId: String) {
         viewModelScope.launch {
             val ok = withContext(Dispatchers.IO) { NativeLibrary.memTableSave(programId) }
-            _message.value = if (ok) "Frozen addresses saved" else "Failed to save the address table"
+            _message.value = context.getString(
+                if (ok) R.string.mem_table_saved else R.string.mem_table_save_failed
+            )
         }
     }
 
     fun loadTable(programId: String) {
         viewModelScope.launch {
             val ok = withContext(Dispatchers.IO) { NativeLibrary.memTableLoad(programId) }
-            _message.value =
-                if (ok) "Frozen addresses restored" else "No saved address table for this title"
+            _message.value = context.getString(
+                if (ok) R.string.mem_table_loaded else R.string.mem_table_none
+            )
             refreshFreezeEntries()
         }
     }
@@ -306,20 +337,24 @@ class MemoryEditorViewModel : ViewModel() {
         }.getOrNull()
     }
 
-    private fun scanErrorMessage(result: Int): String = when (result) {
-        NativeLibrary.MemScanResult.NO_PROCESS -> "No game is running"
-        NativeLibrary.MemScanResult.INVALID_ARGUMENT -> "Invalid scan parameters"
-        NativeLibrary.MemScanResult.ALREADY_RUNNING -> "A scan is already running"
-        else -> "The scan could not be started"
-    }
+    private fun scanErrorMessage(result: Int): String = context.getString(
+        when (result) {
+            NativeLibrary.MemScanResult.NO_PROCESS -> R.string.mem_scan_failed_no_process
+            NativeLibrary.MemScanResult.INVALID_ARGUMENT -> R.string.mem_scan_failed_invalid
+            NativeLibrary.MemScanResult.ALREADY_RUNNING -> R.string.mem_scan_failed_running
+            else -> R.string.mem_scan_failed_generic
+        }
+    )
 
-    private fun refineErrorMessage(result: Int): String = when (result) {
-        NativeLibrary.MemScanResult.NOTHING_TO_REFINE -> "Scan for a value first"
-        NativeLibrary.MemScanResult.ALREADY_RUNNING -> "A scan is already running"
-        NativeLibrary.MemScanResult.NO_PROCESS -> "No game is running"
-        NativeLibrary.MemScanResult.INVALID_ARGUMENT -> "This type cannot be filtered by value"
-        else -> "The filter could not be applied"
-    }
+    private fun refineErrorMessage(result: Int): String = context.getString(
+        when (result) {
+            NativeLibrary.MemScanResult.NOTHING_TO_REFINE -> R.string.mem_refine_failed_first
+            NativeLibrary.MemScanResult.ALREADY_RUNNING -> R.string.mem_scan_failed_running
+            NativeLibrary.MemScanResult.NO_PROCESS -> R.string.mem_scan_failed_no_process
+            NativeLibrary.MemScanResult.INVALID_ARGUMENT -> R.string.mem_refine_failed_type
+            else -> R.string.mem_refine_failed_generic
+        }
+    )
 
     override fun onCleared() {
         pollJob?.cancel()

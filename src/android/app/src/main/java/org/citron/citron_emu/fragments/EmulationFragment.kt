@@ -987,8 +987,7 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
             return
         }
 
-        // Pause while the editor is open: the freezer keeps enforcing values on the core timing
-        // thread either way, but a paused game does not keep changing the values being scanned.
+        // Pause while the editor is open so the value being scanned is stable.
         val shouldResume = emulationState.isRunning && !NativeLibrary.isPaused()
         if (shouldResume) {
             emulationState.pause()
@@ -1000,6 +999,7 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
         ) { _, _ ->
             if (shouldResume && emulationState.isPaused) {
                 emulationState.run(false)
+                android.util.Log.d("MemoryEditor", "resumed emulation after editor closed")
             }
         }
 

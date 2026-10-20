@@ -5,19 +5,14 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="?attr/colorSurface">
-
-    <com.google.android.material.appbar.MaterialToolbar
-        android:id="@+id/memory_editor_toolbar"
-        android:layout_width="match_parent"
-        android:layout_height="?attr/actionBarSize"
-        app:navigationIcon="@drawable/ic_close"
-        app:title="@string/emulation_memory_editor" />
+    android:background="@drawable/mem_editor_window_bg"
+    android:clipToOutline="true">
 
     <com.google.android.material.tabs.TabLayout
         android:id="@+id/memory_editor_tabs"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:minHeight="0dp"
         app:tabMode="fixed">
 
         <com.google.android.material.tabs.TabItem
