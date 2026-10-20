@@ -50,12 +50,20 @@ class FreezeEntryAdapter(
             binding.freezeEntryAddress.text =
                 context.getString(R.string.mem_freeze_address_line, model.addressText, model.typeText())
 
-            // Show the value being enforced alongside the live one so a mismatch is visible.
-            binding.freezeEntryValue.text = if (model.current == null) {
-                context.getString(R.string.mem_freeze_value_unmapped, model.valueText)
+            // The checkbox is the only thing that decides whether the value is being enforced, so
+            // the caption has to follow it. Labelling an unticked row "frozen" was simply wrong.
+            val valueText = if (model.current == null) {
+                context.getString(
+                    if (model.enabled) R.string.mem_freeze_value_unmapped else R.string.mem_value_unmapped,
+                    model.valueText
+                )
             } else {
-                context.getString(R.string.mem_freeze_value_line, model.valueText, model.currentText)
+                context.getString(
+                    if (model.enabled) R.string.mem_freeze_value_line else R.string.mem_value_line,
+                    model.valueText, model.currentText
+                )
             }
+            binding.freezeEntryValue.text = valueText
 
             // Rebind listeners explicitly: the holder is recycled, and an unguarded listener
             // assignment inside setOnCheckedChangeListener would fire on the next bind.

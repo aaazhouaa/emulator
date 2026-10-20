@@ -517,7 +517,7 @@ bool Freezer::SaveToDisk(u64 program_id, const RegionBases& bases) const {
     return true;
 }
 
-bool Freezer::LoadFromDisk(u64 program_id, const RegionBases& bases) {
+bool Freezer::LoadFromDisk(u64 program_id, const RegionBases& bases, bool restore_enabled) {
     const auto path = TablePath(program_id);
     if (!Common::FS::Exists(path)) {
         return false;
@@ -611,7 +611,10 @@ bool Freezer::LoadFromDisk(u64 program_id, const RegionBases& bases) {
         entry.type = type;
         entry.value = value;
         entry.description = item.value("description", std::string{});
-        entry.enabled = item.value("frozen", true);
+        // A table restored at boot comes back unticked: the addresses were relocated, but whether
+        // they still point at the intended field is unknown, so nothing is written until the user
+        // asks for it. Only an explicit reload keeps the saved tick state.
+        entry.enabled = restore_enabled && item.value("frozen", true);
 
         loaded.push_back(std::move(entry));
     }

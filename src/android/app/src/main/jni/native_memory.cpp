@@ -226,8 +226,21 @@ public:
         return truncated;
     }
 
-    std::vector<VAddr> Snapshot(jint offset, jint count) {
+    /// Drops one address from the candidate list.
+    ///
+    /// Used once an address has been added to the table: keeping it in the results meant the user
+    /// could keep pressing add on a row they had already taken, and the list never reflected what
+    /// was left to pick from.
+    ///
+    /// Returns the number of remaining candidates, so the frontend can refresh both the list and
+    /// the count from a single call.
+    std::size_t Erase(VAddr address) {
         std::scoped_lock lock{mutex};
+        std::erase(results, address);
+        return results.size();
+    }
+
+    std::vector<VAddr> Snapshot(jint offset, jint count) {        std::scoped_lock lock{mutex};
         std::vector<VAddr> slice;
         if (offset < 0 || count <= 0) {
             return slice;
@@ -498,6 +511,12 @@ jlongArray Java_org_citron_citron_1emu_NativeLibrary_memScanResults(JNIEnv* env,
     return result;
 }
 
+jint Java_org_citron_citron_1emu_NativeLibrary_memScanEraseResult(JNIEnv* env, jobject jobj,
+                                                                  jlong jaddress) {
+    return static_cast<jint>(
+        MemoryScanSession::GetInstance().Erase(static_cast<VAddr>(jaddress)));
+}
+
 jint Java_org_citron_citron_1emu_NativeLibrary_memScanRefine(JNIEnv* env, jobject jobj,
                                                              jstring jparams) {
     const auto json = Common::Android::GetJString(env, jparams);
@@ -704,11 +723,11 @@ jboolean Java_org_citron_citron_1emu_NativeLibrary_memTableLoad(JNIEnv* env, job
         return JNI_FALSE;
     }
 
-    if (!freezer->LoadFromDisk(program_id, system.GetFreezeRegionBases())) {
+    // `restore_enabled = true`: this is an explicit reload, so the saved tick state is what the
+    // user asked for. It also activates the freezer, unlike the silent load at boot.
+    if (!freezer->LoadFromDisk(program_id, system.GetFreezeRegionBases(), true)) {
         return JNI_FALSE;
     }
-    // An explicit reload is a request to use the table, unlike the silent load at boot which
-    // deliberately stays inactive so a stale address cannot corrupt startup.
     RefreshFreezerActiveState(system);
     return JNI_TRUE;
 }

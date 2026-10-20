@@ -574,6 +574,16 @@ object NativeLibrary {
     external fun memScanResults(offset: Int, count: Int): LongArray
 
     /**
+     * Drops one address from the scan results.
+     *
+     * Called once an address has been added to the table, so the result list only ever shows what
+     * is still available to pick.
+     *
+     * @return The number of candidates left.
+     */
+    external fun memScanEraseResult(address: Long): Int
+
+    /**
      * Filters the current scan results against live memory.
      *
      * @param paramsJson `{type, compare, value, epsilon}` with value as a hex string.

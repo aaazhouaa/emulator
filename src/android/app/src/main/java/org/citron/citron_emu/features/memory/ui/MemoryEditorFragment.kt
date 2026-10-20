@@ -187,8 +187,7 @@ class MemoryEditorFragment : DialogFragment() {
         refineModeActive = active
         val panel = binding.memoryEditorScanPanel
         panel.memScanFirst.setVisible(visible = !active, gone = true)
-        panel.memScanNext.setVisible(visible = active, gone = true)
-        panel.memScanReset.setVisible(visible = active, gone = true)
+        panel.memScanRefineRow.setVisible(visible = active, gone = true)
         updateValueHint()
     }
 
@@ -260,8 +259,10 @@ class MemoryEditorFragment : DialogFragment() {
             initialDescription = "",
             showDescription = true
         ) { value, description ->
+            // The view model reports the outcome itself: it knows whether the table actually made
+            // it to disk, and it clears the row from the scan results. A toast fired here would
+            // claim success before that answer arrived.
             viewModel.freeze(address, type, value, description)
-            viewModel.notify(getString(R.string.mem_freeze_added))
         }
     }
 
@@ -396,12 +397,11 @@ class MemoryEditorFragment : DialogFragment() {
 
     private fun onFreezeEntriesChanged(entries: List<FreezeEntry>) {
         freezeAdapter.submit(entries)
-        binding.memoryEditorTablePanel.memTableStatus.text = when {
-            entries.isEmpty() -> getString(R.string.mem_freeze_none)
-            // A table restored at boot stays inactive on purpose, so say so instead of letting
-            // the ticked boxes imply the values are already being enforced.
-            entries.none { it.enabled } -> getString(R.string.mem_freeze_all_disabled, entries.size)
-            else -> getString(R.string.mem_freeze_count, entries.size)
+        // Count both numbers: “N frozen addresses” lied whenever some rows were unticked.
+        binding.memoryEditorTablePanel.memTableStatus.text = if (entries.isEmpty()) {
+            getString(R.string.mem_freeze_none)
+        } else {
+            getString(R.string.mem_freeze_count, entries.size, entries.count { it.enabled })
         }
     }
 

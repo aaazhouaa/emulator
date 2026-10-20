@@ -459,11 +459,12 @@ struct System::Impl {
         {
             auto* freezer = system.GetFreezer();
             if (freezer != nullptr) {
-                freezer->LoadFromDisk(params.program_id, system.GetFreezeRegionBases());
-                // Do NOT auto-activate here. The addresses are relocated, but whether they still
-                // point at the intended field depends on where the game put it this run, and a
-                // wrong entry written during boot can corrupt it or hang the title. The editor
-                // shows the table and lets the user enable it once the value looks right.
+                // `restore_enabled = false`: the table is restored for display, with every entry
+                // unticked and the freezer parked. The addresses are relocated, but whether they
+                // still point at the intended field depends on where the game put it this run, and
+                // a wrong entry written during boot can corrupt it or hang the title. The user
+                // ticks the entries that look right, and only then are values written.
+                freezer->LoadFromDisk(params.program_id, system.GetFreezeRegionBases(), false);
             }
         }
 

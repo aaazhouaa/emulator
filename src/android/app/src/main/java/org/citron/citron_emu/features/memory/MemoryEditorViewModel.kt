@@ -261,10 +261,28 @@ class MemoryEditorViewModel(application: Application) : AndroidViewModel(applica
                 // parked until the user toggles the checkbox. Passing true would start the
                 // per-frame freezer and make it behave like an always-on freeze.
                 val applied = NativeLibrary.memFreezeSet(address, type.id, value, description, false)
-                applied to FreezeEntry.fromJson(NativeLibrary.memFreezeList())
+                // Drop the row from the scan results: it now lives in the address table, and
+                // leaving it behind let the user add the same address over and over.
+                val remaining = NativeLibrary.memScanEraseResult(address)
+                applied to (remaining to FreezeEntry.fromJson(NativeLibrary.memFreezeList()))
             }
-            _freezeEntries.value = result.second
-            reportMutation(result.first)
+            val (applied, rest) = result
+            val (remaining, entries) = rest
+            _freezeEntries.value = entries
+            // Only touch the scan side when a scan is actually on screen; adding an address while
+            // the list is idle must not replace the "enter a value" prompt with a result count.
+            val scanned = _status.value.let {
+                it is ScanStatus.Done || it is ScanStatus.Cancelled
+            }
+            if (scanned) {
+                publishResultWindow(remaining)
+                _status.value = ScanStatus.Done(remaining)
+            }
+            if (applied) {
+                _message.value = context.getString(R.string.mem_freeze_added)
+            } else {
+                reportMutation(false)
+            }
         }
     }
 

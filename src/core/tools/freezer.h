@@ -127,11 +127,15 @@ public:
     // error. Each entry is written as a region plus an offset within that region, derived from
     // `bases`, so the table can be relocated onto the next boot's address space layout.
     bool SaveToDisk(u64 program_id, const RegionBases& bases) const;
-
     // Loads and relocates a previously saved table. Entries whose stored program id does not
     // match are discarded. Returns false if the file is absent or unreadable; the freezer is
     // left untouched in that case.
-    bool LoadFromDisk(u64 program_id, const RegionBases& bases);
+    //
+    // [restore_enabled] decides whether the saved tick state is applied. The silent load at boot
+    // passes false: the table is restored but nothing is enforced, so the checkbox honestly
+    // reflects that the user has to tick an entry before it takes effect. An explicit reload
+    // passes true.
+    bool LoadFromDisk(u64 program_id, const RegionBases& bases, bool restore_enabled);
 
     // Replaces the whole entry list, used by the loader right after a successful load.
     void LoadEntries(std::vector<Entry> loaded);

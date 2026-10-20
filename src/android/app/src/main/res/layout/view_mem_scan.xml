@@ -58,22 +58,33 @@
             android:layout_marginTop="8dp"
             android:text="@string/mem_scan_first" />
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/mem_scan_next"
-            style="@style/Widget.Material3.Button.OutlinedButton"
+        <!-- Next scan and reset share a row: reset is a secondary action, so it gets a third. -->
+        <LinearLayout
+            android:id="@+id/mem_scan_refine_row"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:visibility="gone"
-            android:text="@string/mem_scan_next" />
+            android:orientation="horizontal"
+            android:visibility="gone">
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/mem_scan_reset"
-            style="@style/Widget.Material3.Button.TextButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:visibility="gone"
-            android:text="@string/mem_scan_reset" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/mem_scan_next"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="2"
+                android:text="@string/mem_scan_next" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/mem_scan_reset"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:text="@string/mem_scan_reset" />
+
+        </LinearLayout>
 
         <com.google.android.material.progressindicator.LinearProgressIndicator
             android:id="@+id/mem_scan_progress"
