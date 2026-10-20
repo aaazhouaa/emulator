@@ -566,6 +566,44 @@ else()
     message(WARNING "Could not find stb_image.h to patch. It may not have been downloaded yet.")
 endif()
 
+# libadrenotools relies on PAGE_SIZE being visible transitively through
+# <sys/mman.h>/<unistd.h>. NDK r29 dropped that, so the Android build needs a
+# local definition. Two files are affected: the library's own bcenabler.cpp and
+# the nested lib/linkernsbypass submodule. Both patches are idempotent: git apply
+# fails harmlessly once the hunk is already present.
+function(citron_apply_optional_patch patch_file description working_dir)
+    if(NOT EXISTS "${patch_file}")
+        message(WARNING "Patch ${patch_file} not found; skipping ${description}.")
+        return()
+    endif()
+
+    execute_process(
+        COMMAND git apply --ignore-whitespace "${patch_file}"
+        WORKING_DIRECTORY "${working_dir}"
+        RESULT_VARIABLE patch_result
+        OUTPUT_QUIET
+        ERROR_QUIET
+    )
+
+    if(NOT patch_result EQUAL 0)
+        message(STATUS "${description}: patch not applied (already applied, or source absent).")
+    else()
+        message(STATUS "${description}: patch applied.")
+    endif()
+endfunction()
+
+if (ANDROID AND ARCHITECTURE_arm64)
+    set(ADRENOTOOLS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/externals/libadrenotools")
+    citron_apply_optional_patch(
+        "${CMAKE_CURRENT_SOURCE_DIR}/patches/libadrenotools-ndk29-page-size.patch"
+        "libadrenotools PAGE_SIZE fix"
+        "${ADRENOTOOLS_DIR}")
+    citron_apply_optional_patch(
+        "${CMAKE_CURRENT_SOURCE_DIR}/patches/libadrenotools-ndk29-page-size-linkerns.patch"
+        "libadrenotools linkernsbypass PAGE_SIZE fix"
+        "${ADRENOTOOLS_DIR}/lib/linkernsbypass")
+endif()
+
 if (ENABLE_QT AND NOT CITRON_USE_CPM)
     if (NOT USE_SYSTEM_QT)
         download_qt(6.9.3)

@@ -75,3 +75,10 @@ dtrace-out/
 .cache/
 
 .diagnostics/
+# Pre-installed vcpkg dependencies for the Android build (see
+# src/android/app/build.gradle.kts VCPKG_INSTALLED_DIR). Regenerate with the
+# vcpkg command documented in that file's comment.
+.vcpkg-build/
+
+# Build patches under patches/ are sources, not local scratch output.
+!patches/*.patch

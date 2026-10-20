@@ -161,7 +161,11 @@ private:
                                                    backbone_labs_vid, xbox_vid};
 
     /// Queue of vibration request to controllers
-    Common::SPSCQueue<VibrationRequest> vibration_queue;
+    /// with_stop_token=true: the consumer calls PopWait(stop_token), which needs
+    /// condition_variable_any. std::condition_variable has no stop_token wait
+    /// overload in standard libc++ (only condition_variable_any does), so the
+    /// default of false fails to compile against the NDK's libc++.
+    Common::SPSCQueue<VibrationRequest, true> vibration_queue;
     std::jthread vibration_thread;
 };
 

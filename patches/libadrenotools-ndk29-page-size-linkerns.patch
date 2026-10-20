@@ -1,0 +1,16 @@
+diff --git a/android_linker_ns.cpp b/android_linker_ns.cpp
+index 421030c..2e25cdc 100644
+--- a/android_linker_ns.cpp
++++ b/android_linker_ns.cpp
+@@ -14,6 +14,11 @@
+ #include "elf_soname_patcher.h"
+ #include "android_linker_ns.h"
+ 
++// NDK r29 no longer exposes PAGE_SIZE through <sys/mman.h>/<unistd.h>.
++#ifndef PAGE_SIZE
++#define PAGE_SIZE static_cast<size_t>(getpagesize())
++#endif
++
+ using loader_android_create_namespace_t = android_namespace_t *(*)(const char *, const char *, const char *, uint64_t, const char *, android_namespace_t *, const void *);
+ static loader_android_create_namespace_t loader_android_create_namespace;
+ 
