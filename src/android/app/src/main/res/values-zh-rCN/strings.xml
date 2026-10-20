@@ -889,6 +889,7 @@
     <string name="mem_scan_no_results">没有匹配的地址。</string>
     <string name="mem_scan_truncated">结果太多——请换更大的数值类型或更小的内存区域。</string>
     <string name="mem_scan_add_to_table">添加到地址表</string>
+    <string name="mem_scan_loading">加载中…</string>
     <string name="mem_freeze_untitled">未命名地址</string>
     <string name="mem_freeze_address_line">%1$s · %2$s</string>
     <string name="mem_freeze_value_line">冻结 %1$s（当前 %2$s）</string>

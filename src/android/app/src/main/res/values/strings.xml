@@ -708,6 +708,7 @@
     <string name="mem_scan_no_results">No addresses matched.</string>
     <string name="mem_scan_truncated">Too many results — try a larger value type or a smaller region.</string>
     <string name="mem_scan_add_to_table">Add to address table</string>
+    <string name="mem_scan_loading">Loading…</string>
     <string name="mem_freeze_untitled">Unnamed address</string>
     <string name="mem_freeze_address_line">%1$s · %2$s</string>
     <string name="mem_freeze_value_line">Frozen %1$s (now %2$s)</string>

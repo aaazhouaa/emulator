@@ -119,7 +119,15 @@ Core::Memory::Memory* Freezer::CurrentMemory() const {
 }
 
 void Freezer::SetActive(bool is_active) {
-    if (!active.exchange(is_active)) {
+    // Compare-and-return instead of exchange: exchange() reports the *old* value, so asking for
+    // the state we are already in (notably SetActive(false) while inactive) used to fall into
+    // the activation branch, reschedule the event and re-prime the entries.
+    if (active.load(std::memory_order_relaxed) == is_active) {
+        return;
+    }
+    active.store(is_active, std::memory_order_relaxed);
+
+    if (is_active) {
         // Only capture the initial values the first time. Re-priming on every activation would
         // overwrite the values the user has deliberately set.
         if (!entries_primed.exchange(true)) {
@@ -128,6 +136,9 @@ void Freezer::SetActive(bool is_active) {
         core_timing.ScheduleEvent(memory_freezer_ns, event);
         LOG_DEBUG(Common_Memory, "Memory freezer activated!");
     } else {
+        // The already-queued callback is left in place: FrameCallback sees !IsActive() and
+        // returns without rescheduling, so the loop ends on its own without touching the
+        // CoreTiming queue from this thread.
         LOG_DEBUG(Common_Memory, "Memory freezer deactivated!");
     }
 }

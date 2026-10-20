@@ -45,9 +45,26 @@ class MemoryEditorViewModel(application: Application) : AndroidViewModel(applica
     private val _status = MutableStateFlow<ScanStatus>(ScanStatus.Idle)
     val status = _status.asStateFlow()
 
-    /** Results of the current scan, loaded lazily in pages by the list adapter. */
-    private val _results = MutableStateFlow<List<Long>>(emptyList())
-    val results = _results.asStateFlow()
+    /**
+     * Size of the current scan result set, plus a serial that changes on every refresh.
+     *
+     * The addresses themselves are never held here: a first scan can yield millions of them, so
+     * the list adapter pulls pages straight from native and keeps only a small window resident.
+     *
+     * [serial] exists because a `StateFlow` conflates equal values: refining can leave the count
+     * unchanged while replacing every address behind it, and the adapter would then keep showing
+     * the stale pages. Bumping the serial guarantees the refresh is delivered.
+     */
+    data class ResultWindow(val count: Int = 0, val serial: Long = 0)
+
+    private val _resultWindow = MutableStateFlow(ResultWindow())
+    val resultWindow = _resultWindow.asStateFlow()
+    private var resultSerial = 0L
+
+    /** Publishes a new result set size, forcing delivery even when [count] is unchanged. */
+    private fun publishResultWindow(count: Int) {
+        _resultWindow.value = ResultWindow(count, ++resultSerial)
+    }
 
     private val _freezeEntries = MutableStateFlow<List<FreezeEntry>>(emptyList())
     val freezeEntries = _freezeEntries.asStateFlow()
@@ -141,7 +158,7 @@ class MemoryEditorViewModel(application: Application) : AndroidViewModel(applica
                 _status.value = ScanStatus.Failed(scanErrorMessage(result))
                 return@launch
             }
-            _results.value = emptyList()
+            publishResultWindow(0)
             _status.value = ScanStatus.Running(0, region.size)
             beginPolling()
         }
@@ -177,7 +194,7 @@ class MemoryEditorViewModel(application: Application) : AndroidViewModel(applica
         pollJob = null
         viewModelScope.launch {
             withContext(Dispatchers.IO) { NativeLibrary.memScanClear() }
-            _results.value = emptyList()
+            publishResultWindow(0)
             _status.value = ScanStatus.Idle
         }
     }
@@ -217,21 +234,8 @@ class MemoryEditorViewModel(application: Application) : AndroidViewModel(applica
 
     private suspend fun reloadResults() {
         val count = withContext(Dispatchers.IO) { NativeLibrary.memScanCount() }
-        val loaded = mutableListOf<Long>()
-        var offset = 0
-        while (offset < count) {
-            val page = withContext(Dispatchers.IO) {
-                NativeLibrary.memScanResults(offset, RESULT_PAGE_SIZE)
-            }
-            if (page.isEmpty()) {
-                // The native list shrank (cleared or re-scanned) while paging.
-                break
-            }
-            page.forEach { loaded.add(it) }
-            offset += page.size
-        }
-        _results.value = loaded
-        _status.value = ScanStatus.Done(loaded.size)
+        publishResultWindow(count)
+        _status.value = ScanStatus.Done(count)
 
         // Tell the user when the scan hit the cap: the candidate list is incomplete and
         // refining it will likely end up empty, so the honest next step is a narrower scan.
@@ -240,6 +244,15 @@ class MemoryEditorViewModel(application: Application) : AndroidViewModel(applica
             _message.value = context.getString(R.string.mem_scan_truncated)
         }
     }
+
+    /**
+     * Copies one page of the current scan results out of native.
+     *
+     * Called from the adapter's background loader, never from a binding pass: the native scan
+     * session holds its mutex for the whole of a refinement, which walks every candidate.
+     */
+    fun loadResultPage(offset: Int, count: Int): List<Long> =
+        NativeLibrary.memScanResults(offset, count).toList()
 
     fun freeze(address: Long, type: MemValueType, value: Long, description: String) {
         viewModelScope.launch {
@@ -366,6 +379,5 @@ class MemoryEditorViewModel(application: Application) : AndroidViewModel(applica
 
     private companion object {
         const val POLL_INTERVAL_MS = 120L
-        const val RESULT_PAGE_SIZE = 20000
     }
 }

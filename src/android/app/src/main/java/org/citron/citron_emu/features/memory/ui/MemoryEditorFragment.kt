@@ -101,7 +101,11 @@ class MemoryEditorFragment : DialogFragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        scanAdapter = ScanResultAdapter { address -> promptAddToTable(address) }
+        scanAdapter = ScanResultAdapter(
+            scope = viewLifecycleOwner.lifecycleScope,
+            pageLoader = viewModel::loadResultPage,
+            onAdd = { address -> promptAddToTable(address) }
+        )
         binding.memoryEditorScanPanel.memScanResults.apply {
             layoutManager = LinearLayoutManager(requireContext())
             adapter = scanAdapter
@@ -333,7 +337,11 @@ class MemoryEditorFragment : DialogFragment() {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 launch { viewModel.regions.collect { onRegionsChanged(it) } }
                 launch { viewModel.status.collect { renderStatus(it) } }
-                launch { viewModel.results.collect { scanAdapter.submit(it) } }
+                launch {
+                    viewModel.resultWindow.collect { window ->
+                        scanAdapter.submitCount(window.count)
+                    }
+                }
                 launch { viewModel.freezeEntries.collect { onFreezeEntriesChanged(it) } }
                 launch {
                     viewModel.message.collect { message ->

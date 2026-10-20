@@ -396,6 +396,22 @@ Tools::ScanParams ParseScanParams(const std::string& json, bool& ok) {
     return params;
 }
 
+/// Keeps the per-frame freezer running only while at least one entry is enabled.
+/// Called after every mutation of the entry table so an emptied table stops the 60Hz callback
+/// instead of leaving it spinning on an empty list for the rest of the session.
+void RefreshFreezerActiveState(Core::System& system) {
+    auto* freezer = system.GetFreezer();
+    if (freezer == nullptr) {
+        return;
+    }
+    const auto entries = freezer->GetEntries();
+    const bool any_enabled = std::any_of(entries.begin(), entries.end(),
+                                         [](const Tools::Freezer::Entry& entry) {
+                                             return entry.enabled;
+                                         });
+    freezer->SetActive(any_enabled);
+}
+
 std::string DumpFreezeEntries(Core::System& system) {
     auto* freezer = system.GetFreezer();
     if (freezer == nullptr) {
@@ -632,12 +648,9 @@ jboolean Java_org_citron_citron_1emu_NativeLibrary_memFreezeSet(JNIEnv* env, job
     // without converting back), which is why frozen values appeared to do nothing.
     freezer->SetEntryEnabled(address, jenabled != 0);
 
-    // Only start the per-frame freezer when at least one entry is actually enabled.
-    // A freshly added address should be written once and then left alone until the user
-    // explicitly checks the freeze box.
-    if (jenabled != 0) {
-        freezer->SetActive(true);
-    }
+    // Only keep the per-frame freezer running while at least one entry is enabled. A freshly
+    // added address is written once (above) and then left alone until the user checks the box.
+    RefreshFreezerActiveState(system);
     return JNI_TRUE;
 }
 
@@ -655,6 +668,8 @@ void Java_org_citron_citron_1emu_NativeLibrary_memFreezeRemove(JNIEnv* env, jobj
     for (const auto& entry : freezer->GetEntries()) {
         if (AbsoluteAddressOf(system, entry) == requested) {
             freezer->Unfreeze(entry.address);
+            // Removing the last enabled entry stops the frame callback.
+            RefreshFreezerActiveState(system);
             return;
         }
     }
@@ -664,6 +679,8 @@ void Java_org_citron_citron_1emu_NativeLibrary_memFreezeClear(JNIEnv* env, jobje
     auto& system = EmulationSession::GetInstance().System();
     if (auto* freezer = system.GetFreezer(); freezer != nullptr) {
         freezer->Clear();
+        // The table is empty now, so park the frame callback instead of leaving it spinning.
+        RefreshFreezerActiveState(system);
     }
 }
 
