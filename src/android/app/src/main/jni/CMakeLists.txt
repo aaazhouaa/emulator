@@ -10,6 +10,7 @@ add_library(citron-android SHARED
     android_settings.cpp
     game_metadata.cpp
     native_log.cpp
+    native_memory.cpp
     android_config.cpp
     android_config.h
     native_input.cpp

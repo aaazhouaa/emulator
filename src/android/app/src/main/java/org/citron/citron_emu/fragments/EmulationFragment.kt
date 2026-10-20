@@ -65,6 +65,7 @@ import org.citron.citron_emu.features.settings.model.Settings.EmulationOrientati
 import org.citron.citron_emu.features.settings.model.Settings.EmulationVerticalAlignment
 import org.citron.citron_emu.features.multiplayer.model.MultiplayerSnapshot
 import org.citron.citron_emu.features.multiplayer.ui.MultiplayerViewModel
+import org.citron.citron_emu.features.memory.ui.MemoryEditorFragment
 import org.citron.citron_emu.features.multiplayer.ui.RoomDialogFragment
 import org.citron.citron_emu.features.settings.utils.SettingsFile
 import org.citron.citron_emu.model.DriverViewModel
@@ -254,6 +255,7 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
                 InputHandler.releaseAllInputs()
                 binding.drawerLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_UNLOCKED)
                 updateMultiplayerRoomMenuVisibility()
+                updateMemoryEditorMenuVisibility()
                 binding.inGameMenu.requestFocus()
                 emulationViewModel.setDrawerOpen(true)
             }
@@ -353,6 +355,12 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
 
                 R.id.menu_cheats -> {
                     showCheats()
+                    true
+                }
+
+                R.id.menu_memory_editor -> {
+                    binding.drawerLayout.close()
+                    openMemoryEditor()
                     true
                 }
 
@@ -542,6 +550,15 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
     ) {
         binding.inGameMenu.menu.findItem(R.id.menu_multiplayer_room).isVisible =
             snapshot.isConnected || snapshot.isHosting
+    }
+
+    /**
+     * The memory editor needs a live application process; offering it while the game is stopped
+     * or still booting would only produce empty region and scan lists.
+     */
+    private fun updateMemoryEditorMenuVisibility() {
+        binding.inGameMenu.menu.findItem(R.id.menu_memory_editor).isVisible =
+            emulationState.isRunning || emulationState.isPaused
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -962,6 +979,32 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
             NativeConfig.reloadGlobalConfig()
             emulationViewModel.setIsEmulationStopping(true)
         }
+    }
+
+    private fun openMemoryEditor() {
+        val tag = MemoryEditorFragment.TAG
+        if (parentFragmentManager.findFragmentByTag(tag) != null) {
+            return
+        }
+
+        // Pause while the editor is open: the freezer keeps enforcing values on the core timing
+        // thread either way, but a paused game does not keep changing the values being scanned.
+        val shouldResume = emulationState.isRunning && !NativeLibrary.isPaused()
+        if (shouldResume) {
+            emulationState.pause()
+        }
+
+        parentFragmentManager.setFragmentResultListener(
+            MemoryEditorFragment.REQUEST_KEY,
+            viewLifecycleOwner
+        ) { _, _ ->
+            if (shouldResume && emulationState.isPaused) {
+                emulationState.run(false)
+            }
+        }
+
+        MemoryEditorFragment.newInstance(game.programId)
+            .show(parentFragmentManager, tag)
     }
 
     private fun showCheats() {

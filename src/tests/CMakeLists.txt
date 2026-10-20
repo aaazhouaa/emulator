@@ -17,6 +17,7 @@ add_executable(tests
     core/core_timing.cpp
     core/exit_callback.cpp
     core/internal_network/network.cpp
+    core/memory_scanner.cpp
     precompiled_headers.h
     video_core/blit_operation.cpp
     video_core/memory_tracker.cpp

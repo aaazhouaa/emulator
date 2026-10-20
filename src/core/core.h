@@ -14,6 +14,7 @@
 
 #include "common/common_types.h"
 #include "core/file_sys/vfs/vfs_types.h"
+#include "core/tools/freezer.h"
 
 namespace Core::Frontend {
 class EmuWindow;
@@ -352,6 +353,14 @@ public:
 
     [[nodiscard]] Memory::CheatEngine* GetCheatEngine();
     [[nodiscard]] const Memory::CheatEngine* GetCheatEngine() const;
+
+    /// Gets the memory freezer used by the frontend memory editor, or nullptr when it has not
+    /// been created yet (before a title has been loaded).
+    [[nodiscard]] Tools::Freezer* GetFreezer();
+    [[nodiscard]] const Tools::Freezer* GetFreezer() const;
+
+    /// Region bases used to relocate saved frozen entries across boots.
+    [[nodiscard]] Tools::Freezer::RegionBases GetFreezeRegionBases() const;
 
     void SetFrontendAppletSet(Service::AM::Frontend::FrontendAppletSet&& set);
 

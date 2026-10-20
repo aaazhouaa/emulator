@@ -32,6 +32,11 @@
         android:title="@string/emulation_cheats" />
 
     <item
+        android:id="@+id/menu_memory_editor"
+        android:icon="@drawable/ic_memory"
+        android:title="@string/emulation_memory_editor" />
+
+    <item
         android:id="@+id/menu_amiibo"
         android:icon="@drawable/ic_nfc"
         android:title="@string/emulation_amiibo" />

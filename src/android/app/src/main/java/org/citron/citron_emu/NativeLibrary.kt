@@ -514,6 +514,122 @@ object NativeLibrary {
      */
     external fun addCheat(programId: String, title: String, code: String): Int
 
+    object MemScanResult {
+        const val SUCCESS = 0
+        const val NO_PROCESS = 1
+        const val INVALID_ARGUMENT = 2
+        const val ALREADY_RUNNING = 3
+        const val NOTHING_TO_REFINE = 4
+    }
+
+    object MemScanState {
+        const val IDLE = 0L
+        const val RUNNING = 1L
+        const val DONE = 2L
+        const val CANCELLED = 3L
+    }
+
+    /**
+     * Returns the guest memory regions that can be scanned, as a JSON array of
+     * `{name, base, size}` objects with base/size encoded as hex strings.
+     */
+    external fun memGetRegions(): String
+
+    /**
+     * Starts an asynchronous memory scan.
+     *
+     * @param paramsJson `{begin, size, type, value, epsilon, pattern}` with numbers as hex strings.
+     * @return A value from [MemScanResult].
+     */
+    external fun memScanStart(paramsJson: String): Int
+
+    /**
+     * Polls the running scan.
+     *
+     * @return `[state, done, total]` where state is one of [MemScanState].
+     */
+    external fun memScanPoll(): LongArray
+
+    /**
+     * Requests cancellation of the running scan. The worker stops at the next chunk boundary.
+     */
+    external fun memScanCancel()
+
+    /**
+     * Returns how many scan results are currently held.
+     */
+    external fun memScanCount(): Int
+
+    /**
+     * Copies a page of scan results.
+     *
+     * @param offset Index of the first result to copy.
+     * @param count Maximum number of results to copy.
+     */
+    external fun memScanResults(offset: Int, count: Int): LongArray
+
+    /**
+     * Filters the current scan results against live memory.
+     *
+     * @param paramsJson `{type, compare, value, epsilon}` with value as a hex string.
+     * @return A value from [MemScanResult].
+     */
+    external fun memScanRefine(paramsJson: String): Int
+
+    /**
+     * Drops all scan results.
+     */
+    external fun memScanClear()
+
+    /**
+     * Reads guest memory for the hex viewer. Returns null when the range is not mapped.
+     */
+    external fun memReadBytes(address: Long, size: Int): ByteArray?
+
+    /**
+     * Writes guest memory. Invalidates the instruction cache so code patches take effect.
+     */
+    external fun memWriteBytes(address: Long, data: ByteArray): Boolean
+
+    /**
+     * Adds or updates a frozen address.
+     *
+     * @param type One of the memory scanner type names ("u32", "f32", ...).
+     * @param value The value to keep writing, as a raw bit pattern.
+     */
+    external fun memFreezeSet(
+        address: Long,
+        type: String,
+        value: Long,
+        description: String,
+        enabled: Boolean
+    ): Boolean
+
+    /**
+     * Removes a frozen address. Takes an absolute address.
+     */
+    external fun memFreezeRemove(address: Long)
+
+    /**
+     * Removes every frozen address.
+     */
+    external fun memFreezeClear()
+
+    /**
+     * Returns the frozen address table as JSON, including each entry's live value.
+     */
+    external fun memFreezeList(): String
+
+    /**
+     * Persists the frozen address table for the given title.
+     */
+    external fun memTableSave(programId: String): Boolean
+
+    /**
+     * Reloads the frozen address table for the given title, relocating region-anchored entries.
+     */
+    external fun memTableLoad(programId: String): Boolean
+
     /**
      * Removes an installed base game for a given [programId].
      * @return Whether an installed base game was removed.

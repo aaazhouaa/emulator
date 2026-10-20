@@ -1218,6 +1218,8 @@ add_library(core STATIC
     reporter.h
     tools/freezer.cpp
     tools/freezer.h
+    tools/memory_scanner.cpp
+    tools/memory_scanner.h
     tools/renderdoc.cpp
     tools/renderdoc.h
 )

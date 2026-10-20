@@ -452,6 +452,22 @@ struct System::Impl {
             cheat_engine->Initialize();
         }
 
+        // Create the memory freezer used by the frontend memory editor and restore any frozen
+        // addresses the user saved for this title. Region bases are only valid once the
+        // application process exists, which is guaranteed at this point.
+        memory_freezer.emplace(core_timing, system);
+        {
+            auto* freezer = system.GetFreezer();
+            if (freezer != nullptr) {
+                freezer->LoadFromDisk(params.program_id, system.GetFreezeRegionBases());
+                // Frozen addresses are only useful if they are enforced; the per-entry
+                // enabled flag still lets a user park individual entries.
+                if (!freezer->GetEntries().empty()) {
+                    freezer->SetActive(true);
+                }
+            }
+        }
+
         // Register with applet manager
         // All threads are started, begin main process execution, now that we're in the clear
         applet_manager.CreateAndInsertByFrontendAppletParameters(std::move(process), params);
@@ -515,6 +531,9 @@ struct System::Impl {
         // first a pending CoreTiming callback will dereference a null/freed pointer
         // and cause a SIGSEGV (seen as this=0x40 inside std::unordered_map::find).
         cheat_engine.reset();
+        // Same ordering requirement as the cheat engine: ~Freezer unschedules a CoreTiming
+        // event and must run before the service manager is torn down.
+        memory_freezer.reset();
         core_timing.ClearPendingEvents();
 
         services.reset();
@@ -961,6 +980,29 @@ Memory::CheatEngine* System::GetCheatEngine() {
 
 const Memory::CheatEngine* System::GetCheatEngine() const {
     return impl->cheat_engine.has_value() ? std::addressof(impl->cheat_engine.value()) : nullptr;
+}
+
+Tools::Freezer* System::GetFreezer() {
+    return impl->memory_freezer.has_value() ? std::addressof(impl->memory_freezer.value())
+                                            : nullptr;
+}
+
+const Tools::Freezer* System::GetFreezer() const {
+    return impl->memory_freezer.has_value() ? std::addressof(impl->memory_freezer.value())
+                                            : nullptr;
+}
+
+Tools::Freezer::RegionBases System::GetFreezeRegionBases() const {
+    Tools::Freezer::RegionBases bases{};
+    const auto* process = impl->kernel.ApplicationProcess();
+    if (process == nullptr) {
+        return bases;
+    }
+    const auto& page_table = process->GetPageTable();
+    bases.heap = GetInteger(page_table.GetHeapRegionStart());
+    bases.alias = GetInteger(page_table.GetAliasRegionStart());
+    bases.code = GetInteger(page_table.GetAliasCodeRegionStart());
+    return bases;
 }
 
 void System::SetFrontendAppletSet(Service::AM::Frontend::FrontendAppletSet&& set) {
