@@ -666,4 +666,310 @@
     <!-- Licenses screen strings -->
     <string name="licenses">许可证</string>
     <string name="license_fidelityfx_fsr_description">来自 AMD 的高品质画质升级技术</string>
+
+    <!-- App identity -->
+    <string name="app_name">citron-neo: The switch fell off</string>
+    <string name="notice_notification_channel_id">noticesAndErrors</string>
+
+    <!-- Library view / navigation -->
+    <string name="home_multiplayer">多人联机</string>
+    <string name="switch_to_list_view">切换为列表视图</string>
+    <string name="switch_to_grid_view">切换为网格视图</string>
+    <string name="switch_to_compact_grid_view">切换为紧凑网格视图</string>
+
+    <!-- Amiibo keys -->
+    <string name="install_amiibo_keys_invalid_description">请选择一个有效的 160 字节 key_retail.bin，其中包含 Amiibo 的 unfixed-info 与 locked-secret 密钥。</string>
+
+    <!-- Dump ROM -->
+    <string name="dump_romfs">转储 RomFS</string>
+    <string name="dump_romfs_description">从游戏中提取 RomFS 文件系统</string>
+    <string name="dump_exefs">转储 ExeFS</string>
+    <string name="dump_exefs_description">从游戏中提取 ExeFS 文件系统</string>
+    <string name="dump_romfs_extracting">正在提取 RomFS…</string>
+    <string name="dump_exefs_extracting">正在提取 ExeFS…</string>
+    <string name="dump_success">提取成功完成</string>
+    <string name="dump_failed">提取失败</string>
+    <string name="dump_failed_emulation_running">游戏运行中无法转储，请先关闭游戏。</string>
+    <string name="select_dump_location_description">选择提取文件的保存位置。可指定一个目录，或使用默认的转储目录。</string>
+    <string name="select_location">选择位置</string>
+    <string name="use_default_location">使用默认位置</string>
+
+    <!-- FSR 2.0 -->
+    <string name="fsr2_quality_mode">FSR 2.0 质量模式</string>
+    <string name="fsr2_quality_mode_description">选择 FSR 2.0 超分辨率的质量模式。质量模式画质更好，性能模式帧率更高。</string>
+    <string name="fsr2_quality_quality">质量</string>
+    <string name="fsr2_quality_balanced">平衡</string>
+    <string name="fsr2_quality_performance">性能</string>
+    <string name="fsr2_quality_ultra_performance">极致性能</string>
+
+    <!-- Logging -->
+    <string name="logging">日志</string>
+    <string name="log_filter">日志过滤</string>
+    <string name="log_filter_custom">自定义…</string>
+    <string name="log_filter_description">设置要显示的日志消息。格式：&lt;class&gt;:&lt;level&gt;。例如：*:Warning Service:Debug</string>
+
+    <!-- Preferences entries -->
+    <string name="preferences_zep_zone">Zep Zone</string>
+    <string name="preferences_zep_zone_description">高级模拟设置</string>
+    <string name="preferences_applets_android">Android 端小程序</string>
+    <string name="preferences_applets_android_description">系统小程序配置</string>
+
+    <!-- Multiplayer: general -->
+    <string name="airplane_mode">飞行模式</string>
+    <string name="airplane_mode_multiplayer_description">关闭网络功能。创建或加入房间时会自动关闭此选项。</string>
+
+    <!-- Multiplayer: direct connect -->
+    <string name="direct_connect">直连</string>
+    <string name="direct_connect_connect">连接</string>
+    <string name="direct_connect_host">服务器地址</string>
+    <string name="direct_connect_port">端口</string>
+    <string name="direct_connect_nickname">昵称</string>
+    <string name="direct_connect_password">密码（可选）</string>
+    <string name="direct_connect_connecting">正在连接…</string>
+    <string name="direct_connect_connected">已连接</string>
+    <string name="direct_connect_disconnected">已断开</string>
+    <string name="direct_connect_failed">无法连接到该房间</string>
+    <string name="direct_connect_invalid_input">请输入服务器地址、有效端口，以及 4–20 个字符的 ASCII 昵称。</string>
+    <string name="direct_connect_disconnect">断开连接</string>
+
+    <!-- Multiplayer: validation -->
+    <string name="multiplayer_ascii_identifier_hint">仅支持 4–20 个 ASCII 字母、数字、空格或 . _ -</string>
+    <string name="multiplayer_invalid_identifier">请使用 4–20 个 ASCII 字母、数字、空格或 . _ -</string>
+    <string name="multiplayer_invalid_host">请输入有效的服务器地址。</string>
+    <string name="multiplayer_invalid_port">请输入 1 到 65535 之间的端口。</string>
+    <string name="multiplayer_invalid_player_count">请输入 2 到 16 名玩家。</string>
+
+    <!-- Multiplayer: hosting -->
+    <string name="host_room_unlisted">创建非公开房间</string>
+    <string name="host_room_name">房间名称</string>
+    <string name="host_room_description">房间描述（可选）</string>
+    <string name="host_room_max_players">最大玩家数</string>
+    <string name="host_room_create">创建</string>
+    <string name="host_room_creating">正在创建房间…</string>
+    <string name="host_room_invalid_input">房间名称与昵称请使用 4–20 个 ASCII 字符，并填写有效端口和 2–16 名玩家。</string>
+    <string name="multiplayer_airplane_mode_disabled">已为多人联机关闭飞行模式。</string>
+
+    <!-- Multiplayer: room UI -->
+    <string name="room_title">多人联机房间</string>
+    <string name="multiplayer_status">状态</string>
+    <string name="multiplayer_status_disconnected">未连接</string>
+    <string name="multiplayer_status_connecting">正在连接…</string>
+    <string name="multiplayer_status_connected">已加入房间</string>
+    <string name="multiplayer_status_hosting">正在主持房间</string>
+    <string name="multiplayer_status_host_disconnected">主持中；本地连接已断开</string>
+    <string name="multiplayer_actions_description">开始游戏前请先创建或加入房间。房间名称与昵称为协议标识，仅支持 ASCII；房间描述和聊天支持多语言文本。</string>
+    <string name="multiplayer_leave_complete">已离开多人联机房间。</string>
+    <string name="multiplayer_close_complete">已关闭多人联机房间。</string>
+    <string name="room_open">打开当前房间</string>
+    <string name="room_summary">%1$s · %2$s/%3$s 名成员</string>
+    <string name="room_no_description">无房间描述</string>
+    <string name="room_connected_port">已连接，端口 %1$s</string>
+    <string name="room_connected_game">正在游玩 %1$s · 端口 %2$s</string>
+    <string name="room_members">成员</string>
+    <string name="room_chat">聊天</string>
+    <string name="room_message">消息</string>
+    <string name="room_message_too_long">消息不得超过 500 个 UTF-8 字节。</string>
+    <string name="room_message_send_failed">消息未发送，请检查房间连接。</string>
+    <string name="room_send">发送</string>
+    <string name="room_leave">离开房间</string>
+    <string name="room_close_hosted">关闭房间</string>
+    <string name="room_chat_line">%1$s：%2$s</string>
+    <string name="room_chat_line_self">你：%1$s</string>
+    <string name="room_member_joined">• %1$s 加入了</string>
+    <string name="room_member_left">• %1$s 离开了</string>
+    <string name="room_member_kicked">• %1$s 被移出</string>
+    <string name="room_member_banned">• %1$s 被封禁</string>
+    <string name="room_member_unbanned">• %1$s 已解封</string>
+
+    <!-- Multiplayer: errors -->
+    <string name="multiplayer_error_lost_connection">与房间的连接已断开。</string>
+    <string name="multiplayer_error_kicked">你被房主移出了房间。</string>
+    <string name="multiplayer_error_name_collision">该昵称已被使用。</string>
+    <string name="multiplayer_error_ip_collision">分配的网络地址已被占用。</string>
+    <string name="multiplayer_error_wrong_version">该房间使用了不兼容的网络版本。</string>
+    <string name="multiplayer_error_wrong_password">房间密码不正确。</string>
+    <string name="multiplayer_error_could_not_connect">房间无响应，请检查地址和端口。</string>
+    <string name="multiplayer_error_room_full">房间已满。</string>
+    <string name="multiplayer_error_banned">你已被该房间封禁。</string>
+    <string name="multiplayer_error_permission_denied">你没有执行该操作的权限。</string>
+    <string name="multiplayer_error_no_such_user">该房间成员已不存在。</string>
+    <string name="multiplayer_error_network_not_initialized">房间网络尚未初始化，请重启 Citron 后重试。</string>
+    <string name="multiplayer_error_invalid_arguments">房间设置无效。</string>
+    <string name="multiplayer_error_no_network_interface">没有可用的网络接口，请检查 Wi-Fi 或移动数据。</string>
+    <string name="multiplayer_error_room_unavailable">房间网络服务不可用，请重启 Citron 后重试。</string>
+    <string name="multiplayer_error_room_already_open">已有一个房间正在主持，请先关闭再创建。</string>
+    <string name="multiplayer_error_member_busy">已有房间连接处于活动或连接中状态。</string>
+    <string name="multiplayer_error_could_not_create_room">无法开放房间端口，请更换端口或关闭占用该端口的应用。</string>
+    <string name="multiplayer_error_local_join_failed">房间已开启，但房主无法在本地加入。</string>
+    <string name="multiplayer_error_unknown">无法连接到该房间。</string>
+
+    <!-- Headers -->
+    <string name="memory_layout_header">内存布局</string>
+    <string name="astc_settings_header">ASTC 设置</string>
+    <string name="advanced_graphics_header">高级图形</string>
+    <string name="applet_settings_header">小程序设置</string>
+
+    <!-- Applet modes -->
+    <string name="cabinet_applet_mode">Amiibo 读取器小程序模式</string>
+    <string name="cabinet_applet_mode_description">设置 Amiibo 读取器小程序的模拟方式（HLE/LLE）</string>
+    <string name="controller_applet_mode">手柄小程序模式</string>
+    <string name="controller_applet_mode_description">设置手柄小程序的模拟方式（HLE/LLE）</string>
+    <string name="data_erase_applet_mode">数据清除小程序模式</string>
+    <string name="data_erase_applet_mode_description">设置数据清除小程序的模拟方式（HLE/LLE）</string>
+    <string name="error_applet_mode">错误提示小程序模式</string>
+    <string name="error_applet_mode_description">设置错误提示小程序的模拟方式（HLE/LLE）</string>
+    <string name="net_connect_applet_mode">网络连接小程序模式</string>
+    <string name="net_connect_applet_mode_description">设置网络连接小程序的模拟方式（HLE/LLE）</string>
+    <string name="player_select_applet_mode">玩家选择小程序模式</string>
+    <string name="player_select_applet_mode_description">设置玩家选择小程序的模拟方式（HLE/LLE）</string>
+    <string name="swkbd_applet_mode">软键盘小程序模式</string>
+    <string name="swkbd_applet_mode_description">设置软键盘小程序的模拟方式（HLE/LLE）</string>
+    <string name="mii_edit_applet_mode">Mii 编辑小程序模式</string>
+    <string name="mii_edit_applet_mode_description">设置 Mii 编辑小程序的模拟方式（HLE/LLE）</string>
+    <string name="web_applet_mode">网页小程序模式</string>
+    <string name="web_applet_mode_description">设置网页小程序的模拟方式（HLE/LLE）</string>
+    <string name="shop_applet_mode">商店小程序模式</string>
+    <string name="shop_applet_mode_description">设置商店小程序的模拟方式（HLE/LLE）</string>
+    <string name="photo_viewer_applet_mode">相册小程序模式</string>
+    <string name="photo_viewer_applet_mode_description">设置相册小程序的模拟方式（HLE/LLE）</string>
+    <string name="offline_web_applet_mode">离线网页小程序模式</string>
+    <string name="offline_web_applet_mode_description">设置离线网页小程序的模拟方式（HLE/LLE）</string>
+    <string name="login_share_applet_mode">登录分享小程序模式</string>
+    <string name="login_share_applet_mode_description">设置登录分享小程序的模拟方式（HLE/LLE）</string>
+    <string name="wifi_web_auth_applet_mode">Wi-Fi 网页认证小程序模式</string>
+    <string name="wifi_web_auth_applet_mode_description">设置 Wi-Fi 网页认证小程序的模拟方式（HLE/LLE）</string>
+    <string name="my_page_applet_mode">我的页面小程序模式</string>
+    <string name="my_page_applet_mode_description">设置我的页面小程序的模拟方式（HLE/LLE）</string>
+
+    <!-- Emulation overlays -->
+    <string name="emulation_graphics_error">图形模拟已停止</string>
+    <string name="emulation_graphics_error_description">图像尺寸不受支持，或无法分配显存。详情请查看模拟日志。</string>
+    <string name="emulation_ram_meter">内存占用指示</string>
+    <string name="emulation_shader_building_overlay">着色器编译提示</string>
+    <string name="emulation_performance_graph">性能曲线</string>
+
+    <!-- Cheats -->
+    <string name="emulation_cheats_empty">该游戏没有可用的金手指。</string>
+    <string name="emulation_cheats_add">添加金手指</string>
+    <string name="emulation_cheats_title">名称</string>
+    <string name="emulation_cheats_code">代码</string>
+    <string name="emulation_cheats_invalid_title">名称中请不要使用方括号或换行。</string>
+    <string name="emulation_cheats_invalid_code">请输入有效的 Atmosphère 金手指代码。</string>
+    <string name="emulation_cheats_duplicate_title">已存在同名的热加载金手指。</string>
+    <string name="emulation_cheats_engine_unavailable">该游戏无法使用金手指引擎。</string>
+    <string name="emulation_cheats_add_failed">无法保存金手指文件。</string>
+    <string name="emulation_cheats_added">金手指已添加并启用。</string>
+
+    <!-- Amiibo -->
+    <string name="emulation_amiibo">Amiibo</string>
+    <string name="emulation_amiibo_load">载入</string>
+    <string name="emulation_amiibo_remove">移除</string>
+    <string name="emulation_amiibo_invalid">所选文件不是有效的 Amiibo BIN 或 Flipper NFC 文件。</string>
+    <string name="emulation_amiibo_not_scanning">当前游戏未在读取 Amiibo。</string>
+    <string name="emulation_amiibo_read_failed">无法读取所选的 Amiibo 文件。</string>
+    <string name="emulation_amiibo_write_failed">无法将更改保存到所选 Amiibo 文件，缓存数据已保留，可重试。</string>
+    <string name="emulation_amiibo_load_failed">无法载入所选的 Amiibo 文件。</string>
+    <string name="emulation_amiibo_loaded">Amiibo 已载入。</string>
+    <string name="emulation_amiibo_removed">Amiibo 已移除。</string>
+    <string name="emulation_amiibo_keys_required">需要 Amiibo 密钥</string>
+    <string name="emulation_amiibo_keys_required_description">该加密的 Amiibo BIN 需要 key_retail.bin。导入 Amiibo 密钥后将重新载入其数据。</string>
+    <string name="emulation_amiibo_invalid_keys">已安装的 Amiibo 密钥无法解密该 BIN。请重新安装有效的 key_retail.bin，或检查该数据文件。</string>
+
+    <!-- System language names (kept in their own language, as Android does) -->
+    <string name="language_japanese">日本語</string>
+    <string name="language_english">English</string>
+    <string name="language_french">Français</string>
+    <string name="language_german">Deutsch</string>
+    <string name="language_italian">Italiano</string>
+    <string name="language_spanish">Español</string>
+    <string name="language_chinese">简体中文</string>
+    <string name="language_korean">한국어</string>
+    <string name="language_dutch">Nederlands</string>
+    <string name="language_portuguese">Português</string>
+    <string name="language_russian">Русский</string>
+    <string name="language_taiwanese">台湾</string>
+    <string name="language_british_english">British English</string>
+    <string name="language_canadian_french">Français canadien</string>
+    <string name="language_latin_american_spanish">Español latinoamericano</string>
+    <string name="language_simplified_chinese">简体中文</string>
+    <string name="language_traditional_chinese">正體中文</string>
+    <string name="language_brazilian_portuguese">Português do Brasil</string>
+
+    <!-- Resolution / scaling -->
+    <string name="renderer_accuracy_low">低</string>
+    <string name="resolution_quarter">0.25 倍 (180p/270p) [实验性]</string>
+    <string name="resolution_one_and_quarter">1.25 倍 (900p/1350p) [实验性]</string>
+    <string name="resolution_one_and_half">1.5 倍 (1080p/1620p) [实验性]</string>
+    <string name="resolution_one_and_three_quarter">1.75 倍 (1260p/1890p) [实验性]</string>
+    <string name="resolution_five">5 倍 (3600p/5400p)</string>
+    <string name="resolution_six">6 倍 (4320p/6480p)</string>
+    <string name="resolution_seven">7 倍 (5040p/7560p)</string>
+    <string name="resolution_eight">8 倍 (5760p/8640p)</string>
+    <string name="scaling_filter_scale_fx">ScaleFX</string>
+    <string name="scaling_filter_lanczos">Lanczos</string>
+    <string name="scaling_filter_fsr2">AMD FidelityFX™ Super Resolution 2.0</string>
+    <string name="scaling_filter_crt_easymode">CRT EasyMode</string>
+    <string name="scaling_filter_crt_royale">CRT Royale</string>
+    <string name="anti_aliasing_taa">TAA</string>
+    <string name="ratio_force_thirty_two_nine">强制 32:9</string>
+
+    <!-- Cheats entry -->
+    <string name="emulation_cheats">金手指</string>
+
+    <!-- Memory layout -->
+    <string name="memory_layout_mode">内存布局</string>
+    <string name="memory_layout_mode_description">将模拟内存从零售版 Switch 的 4GB 提升到开发机规格的 8/6GB。此选项不会提升稳定性或性能，仅用于让大型材质 MOD 能载入内存。开启后内存占用会增加，除非某个游戏的材质 MOD 确实需要，否则不建议开启。</string>
+
+    <!-- ASTC -->
+    <string name="astc_decode_mode">ASTC 解码方式</string>
+    <string name="astc_decode_mode_description">设置 ASTC 纹理的解码方式。GPU 解码速度更快，但部分设备上可能出现问题。</string>
+    <string name="astc_recompression">ASTC 重压缩方式</string>
+    <string name="astc_recompression_description">设置 GPU 不原生支持 ASTC 时的纹理重压缩方式。</string>
+
+    <!-- Vulkan advanced -->
+    <string name="extended_dynamic_state">扩展动态状态</string>
+    <string name="extended_dynamic_state_description">设置启用哪些 Vulkan 扩展动态状态特性。EDS3（默认）启用全部特性以获得最佳兼容性；EDS2/EDS1 会限制特性，用于排查图形问题；关闭则禁用全部 EDS 特性。若某些游戏出现渲染异常，可尝试调低此设置。</string>
+    <string name="use_conditional_rendering">使用条件渲染</string>
+    <string name="use_conditional_rendering_description">根据查询结果启用条件渲染。关闭此选项可修复某些游戏中物体闪烁的问题，但可能影响性能。若画面中物体频繁闪现，可尝试关闭。</string>
+
+    <!-- Frame skipping -->
+    <string name="frame_skipping">跳帧</string>
+    <string name="frame_skipping_description">当系统无法达到目标帧率时跳过部分帧以维持流畅度。</string>
+    <string name="frame_skipping_mode">跳帧模式</string>
+    <string name="frame_skipping_mode_description">自适应模式根据性能状况决定跳帧数量，固定模式则跳过指定数量的帧。</string>
+    <string name="frame_skipping_disabled">关闭</string>
+    <string name="frame_skipping_enabled">开启</string>
+    <string name="frame_skipping_mode_adaptive">自适应</string>
+    <string name="frame_skipping_mode_fixed">固定</string>
+    <string name="frame_skipping_header">跳帧</string>
+
+    <!-- CRT shader -->
+    <string name="crt_shader_header">CRT 着色器设置</string>
+    <string name="crt_scanline_strength">扫描线强度</string>
+    <string name="crt_scanline_strength_description">设置 CRT 扫描线的强度。数值越高，扫描线越深、越明显。</string>
+    <string name="crt_curvature">屏幕曲率</string>
+    <string name="crt_curvature_description">模拟老式 CRT 显示器的曲面玻璃。0 为平面，数值越大曲率越明显。</string>
+    <string name="crt_gamma">伽马</string>
+    <string name="crt_gamma_description">调整画面的亮度曲线。数值越小画面越暗，越大越亮。</string>
+    <string name="crt_bloom">泛光</string>
+    <string name="crt_bloom_description">为明亮区域添加柔和光晕，呈现 CRT 显示器特有的荧光溢出效果。</string>
+    <string name="crt_mask_type">荫罩类型</string>
+    <string name="crt_mask_type_description">模拟 CRT 显示器的荫罩或栅格式荫罩。影响子像素的渲染方式。</string>
+    <string name="crt_brightness">亮度</string>
+    <string name="crt_brightness_description">整体亮度调整。低于 1.0 使画面变暗，高于 1.0 使画面变亮。</string>
+    <string name="crt_alpha">着色器强度</string>
+    <string name="crt_alpha_description">在 CRT 效果与原画面之间混合。1.0 为完整 CRT 效果，数值越低越接近原画面。</string>
+    <string name="crt_mask_none">无</string>
+    <string name="crt_mask_aperture">栅格式荫罩</string>
+    <string name="crt_mask_shadow">阴影式荫罩</string>
+
+    <!-- License metadata: names and short descriptions are localised,
+         the licence bodies themselves stay in English like every other
+         translation of this app. -->
+    <string name="license_cubeb_description">跨平台音频库</string>
+    <string name="license_dynarmic_description">ARM 动态重编译器</string>
+    <string name="license_ffmpeg_description">FFmpeg 是一套用于处理音频、视频、字幕及相关元数据等多媒体内容的库与工具集合。</string>
+    <string name="license_opus_description">面向互联网的现代音频压缩格式</string>
+    <string name="license_sirit_description">运行时的 SPIR-V 汇编器</string>
+    <string name="license_adreno_tools_description">用于免 root 应用 Adreno GPU 驱动修改或替换的库</string>
     </resources>
