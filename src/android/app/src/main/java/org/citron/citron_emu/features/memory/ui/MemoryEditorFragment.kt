@@ -396,10 +396,12 @@ class MemoryEditorFragment : DialogFragment() {
 
     private fun onFreezeEntriesChanged(entries: List<FreezeEntry>) {
         freezeAdapter.submit(entries)
-        binding.memoryEditorTablePanel.memTableStatus.text = if (entries.isEmpty()) {
-            getString(R.string.mem_freeze_none)
-        } else {
-            getString(R.string.mem_freeze_count, entries.size)
+        binding.memoryEditorTablePanel.memTableStatus.text = when {
+            entries.isEmpty() -> getString(R.string.mem_freeze_none)
+            // A table restored at boot stays inactive on purpose, so say so instead of letting
+            // the ticked boxes imply the values are already being enforced.
+            entries.none { it.enabled } -> getString(R.string.mem_freeze_all_disabled, entries.size)
+            else -> getString(R.string.mem_freeze_count, entries.size)
         }
     }
 
@@ -429,6 +431,9 @@ class MemoryEditorFragment : DialogFragment() {
     }
 
     override fun onDestroy() {
+        // Flush as a backstop: every mutation already persists, but a table left untouched while
+        // the game was paused would otherwise rely on that alone.
+        viewModel.persistTable(gameProgramId)
         // Tell the host to resume emulation; a dismissed dialog must not leave the game paused.
         parentFragmentManager.setFragmentResult(REQUEST_KEY, Bundle.EMPTY)
         super.onDestroy()

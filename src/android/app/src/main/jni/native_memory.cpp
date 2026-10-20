@@ -46,50 +46,6 @@ constexpr jint MaxTransferCount = 20000;
 /// Hard cap on the bytes a single hex-view read may request.
 constexpr jint MaxReadBytes = 0x100000;
 
-/// Every region a frozen address can be anchored to, with its current base and size.
-struct RegionSpan {
-    Tools::FreezeRegion region;
-    VAddr base;
-    u64 size;
-};
-
-std::vector<RegionSpan> CurrentRegionSpans(Core::System& system) {
-    std::vector<RegionSpan> spans;
-    const auto* process = system.ApplicationProcess();
-    if (process == nullptr) {
-        return spans;
-    }
-
-    const auto& page_table = process->GetPageTable();
-    const auto add = [&spans](Tools::FreezeRegion region, VAddr base, u64 size) {
-        if (base != 0 && size != 0) {
-            spans.push_back({region, base, size});
-        }
-    };
-
-    add(Tools::FreezeRegion::Heap, GetInteger(page_table.GetHeapRegionStart()),
-        page_table.GetHeapRegionSize());
-    add(Tools::FreezeRegion::Alias, GetInteger(page_table.GetAliasRegionStart()),
-        page_table.GetAliasRegionSize());
-    add(Tools::FreezeRegion::Code, GetInteger(page_table.GetAliasCodeRegionStart()),
-        page_table.GetAliasCodeRegionSize());
-
-    return spans;
-}
-
-/// Converts a stored entry address back to an absolute one, honouring its region anchor.
-VAddr AbsoluteAddressOf(Core::System& system, const Tools::Freezer::Entry& entry) {
-    if (entry.region == Tools::FreezeRegion::Absolute) {
-        return entry.address;
-    }
-    for (const auto& span : CurrentRegionSpans(system)) {
-        if (span.region == entry.region) {
-            return span.base + entry.address;
-        }
-    }
-    return entry.address;
-}
-
 /**
  * Owns the scan state shared with the Kotlin side.
  *
@@ -396,20 +352,36 @@ Tools::ScanParams ParseScanParams(const std::string& json, bool& ok) {
     return params;
 }
 
-/// Keeps the per-frame freezer running only while at least one entry is enabled.
-/// Called after every mutation of the entry table so an emptied table stops the 60Hz callback
-/// instead of leaving it spinning on an empty list for the rest of the session.
-void RefreshFreezerActiveState(Core::System& system) {
-    auto* freezer = system.GetFreezer();
-    if (freezer == nullptr) {
-        return;
+/// Program id of the running application, or 0 when no process is loaded.
+/// The system accessor dereferences the application process unconditionally, which is not safe
+/// here: these handlers can be reached from the editor while a title is shutting down.
+u64 CurrentProgramId(Core::System& system) {
+    const auto* process = system.ApplicationProcess();
+    if (process == nullptr) {
+        return 0;
     }
-    const auto entries = freezer->GetEntries();
-    const bool any_enabled = std::any_of(entries.begin(), entries.end(),
-                                         [](const Tools::Freezer::Entry& entry) {
-                                             return entry.enabled;
-                                         });
-    freezer->SetActive(any_enabled);
+    return process->GetProgramId();
+}
+
+/// Applies the current entry list to the per-frame freezer: it runs while at least one entry is
+/// enabled and is parked otherwise, so an emptied table does not leave the 60Hz callback
+/// spinning for the rest of the session, and a freshly loaded table is enforced immediately.
+void RefreshFreezerActiveState(Core::System& system) {
+    if (auto* freezer = system.GetFreezer(); freezer != nullptr) {
+        freezer->SyncActiveWithEntries();
+    }
+}
+
+/// Persists the table for this title, so changes made in the editor survive a restart.
+///
+/// Returns false when the table could not be written, including when the program id is unknown;
+/// the frontend then reports the change as unsaved instead of silently dropping it.
+bool PersistTable(Core::System& system, u64 program_id) {
+    auto* freezer = system.GetFreezer();
+    if (freezer == nullptr || program_id == 0) {
+        return false;
+    }
+    return freezer->SaveToDisk(program_id, system.GetFreezeRegionBases());
 }
 
 std::string DumpFreezeEntries(Core::System& system) {
@@ -422,18 +394,15 @@ std::string DumpFreezeEntries(Core::System& system) {
 
     nlohmann::json out = nlohmann::json::array();
     for (const auto& entry : entries) {
-        // Report an absolute address to the frontend; the stored value may be a region offset.
-        const VAddr absolute = AbsoluteAddressOf(system, entry);
-
         u64 current{};
         const bool has_current = Tools::MemoryScanner::ReadValue(
             [&system](VAddr address, void* data, std::size_t size) {
                 return ReadGuest(system, address, data, size);
             },
-            entry.type, absolute, current);
+            entry.type, entry.address, current);
 
         auto item = nlohmann::json::object();
-        item["address"] = fmt::format("{:016X}", absolute);
+        item["address"] = fmt::format("{:016X}", entry.address);
         item["type"] = std::string{Tools::MemoryScanner::NameOf(entry.type)};
         item["value"] = fmt::format("{:016X}", entry.value);
         item["current"] = has_current ? fmt::format("{:016X}", current) : std::string{};
@@ -643,45 +612,54 @@ jboolean Java_org_citron_citron_1emu_NativeLibrary_memFreezeSet(JNIEnv* env, job
 
     freezer->FreezeAt(address, type, value, description);
 
-    // Keep the entry's absolute address verbatim. Relocating it into a region offset here
-    // would make FrameCallback write to the wrong address (it uses entry.address directly
-    // without converting back), which is why frozen values appeared to do nothing.
+    // The entry keeps its absolute address; anchoring it into a region offset here would make
+    // FrameCallback write somewhere else, because it uses entry.address directly.
     freezer->SetEntryEnabled(address, jenabled != 0);
 
     // Only keep the per-frame freezer running while at least one entry is enabled. A freshly
     // added address is written once (above) and then left alone until the user checks the box.
     RefreshFreezerActiveState(system);
-    return JNI_TRUE;
+
+    // Write the table through immediately: the editor used to require an explicit save, and a
+    // restart silently rolled back every edit made since the last one. The return value tells the
+    // frontend whether the change actually made it to disk.
+    return PersistTable(system, CurrentProgramId(system)) ? JNI_TRUE : JNI_FALSE;
 }
 
-void Java_org_citron_citron_1emu_NativeLibrary_memFreezeRemove(JNIEnv* env, jobject jobj,
-                                                               jlong jaddress) {
-    auto& system = EmulationSession::GetInstance().System();
+jboolean Java_org_citron_citron_1emu_NativeLibrary_memFreezeRemove(JNIEnv* env, jobject jobj,
+                                                                   jlong jaddress) {
+    auto& session = EmulationSession::GetInstance();
+    const auto lock = session.AcquireSessionLock();
+    auto& system = session.System();
+
     auto* freezer = system.GetFreezer();
     if (freezer == nullptr) {
-        return;
+        return JNI_FALSE;
     }
 
-    // The frontend always speaks in absolute addresses, but the entry may store a region
-    // offset, so the lookup has to go through the entry list.
-    const auto requested = static_cast<VAddr>(jaddress);
-    for (const auto& entry : freezer->GetEntries()) {
-        if (AbsoluteAddressOf(system, entry) == requested) {
-            freezer->Unfreeze(entry.address);
-            // Removing the last enabled entry stops the frame callback.
-            RefreshFreezerActiveState(system);
-            return;
-        }
-    }
+    // Entries hold absolute addresses, so the frontend's address is the key directly.
+    freezer->Unfreeze(static_cast<VAddr>(jaddress));
+
+    // Removing the last enabled entry stops the frame callback.
+    RefreshFreezerActiveState(system);
+    return PersistTable(system, CurrentProgramId(system)) ? JNI_TRUE : JNI_FALSE;
 }
 
-void Java_org_citron_citron_1emu_NativeLibrary_memFreezeClear(JNIEnv* env, jobject jobj) {
-    auto& system = EmulationSession::GetInstance().System();
-    if (auto* freezer = system.GetFreezer(); freezer != nullptr) {
-        freezer->Clear();
-        // The table is empty now, so park the frame callback instead of leaving it spinning.
-        RefreshFreezerActiveState(system);
+jboolean Java_org_citron_citron_1emu_NativeLibrary_memFreezeClear(JNIEnv* env, jobject jobj) {
+    auto& session = EmulationSession::GetInstance();
+    const auto lock = session.AcquireSessionLock();
+    auto& system = session.System();
+
+    auto* freezer = system.GetFreezer();
+    if (freezer == nullptr) {
+        return JNI_FALSE;
     }
+
+    freezer->Clear();
+    // The table is empty now, so park the frame callback instead of leaving it spinning.
+    RefreshFreezerActiveState(system);
+    // Persist the empty table, otherwise the old one is restored on the next boot.
+    return PersistTable(system, CurrentProgramId(system)) ? JNI_TRUE : JNI_FALSE;
 }
 
 jstring Java_org_citron_citron_1emu_NativeLibrary_memFreezeList(JNIEnv* env, jobject jobj) {
@@ -705,9 +683,9 @@ jboolean Java_org_citron_citron_1emu_NativeLibrary_memTableSave(JNIEnv* env, job
         return JNI_FALSE;
     }
 
-    // Entries are already anchored when they were created, and the anchor points at the base of
-    // this session's region, so saving does not need to (and must not) rebase them again.
-    return freezer->SaveToDisk(program_id) ? JNI_TRUE : JNI_FALSE;
+    // Anchors are derived here, from this session's region bases, rather than stored on the
+    // entry: that keeps the in-memory address absolute and the on-disk form relocatable.
+    return PersistTable(system, program_id) ? JNI_TRUE : JNI_FALSE;
 }
 
 jboolean Java_org_citron_citron_1emu_NativeLibrary_memTableLoad(JNIEnv* env, jobject jobj,
@@ -729,9 +707,9 @@ jboolean Java_org_citron_citron_1emu_NativeLibrary_memTableLoad(JNIEnv* env, job
     if (!freezer->LoadFromDisk(program_id, system.GetFreezeRegionBases())) {
         return JNI_FALSE;
     }
-    if (!freezer->GetEntries().empty()) {
-        freezer->SetActive(true);
-    }
+    // An explicit reload is a request to use the table, unlike the silent load at boot which
+    // deliberately stays inactive so a stale address cannot corrupt startup.
+    RefreshFreezerActiveState(system);
     return JNI_TRUE;
 }
 

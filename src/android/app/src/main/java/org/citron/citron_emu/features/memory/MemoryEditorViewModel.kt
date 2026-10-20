@@ -256,55 +256,86 @@ class MemoryEditorViewModel(application: Application) : AndroidViewModel(applica
 
     fun freeze(address: Long, type: MemValueType, value: Long, description: String) {
         viewModelScope.launch {
-            withContext(Dispatchers.IO) {
+            val result = withContext(Dispatchers.IO) {
                 // Add the entry without enabling the freeze: it writes once, then stays
                 // parked until the user toggles the checkbox. Passing true would start the
                 // per-frame freezer and make it behave like an always-on freeze.
-                NativeLibrary.memFreezeSet(address, type.id, value, description, false)
-                NativeLibrary.memFreezeList()
-            }.let { FreezeEntry.fromJson(it) }
-                .also { _freezeEntries.value = it }
+                val applied = NativeLibrary.memFreezeSet(address, type.id, value, description, false)
+                applied to FreezeEntry.fromJson(NativeLibrary.memFreezeList())
+            }
+            _freezeEntries.value = result.second
+            reportMutation(result.first)
+        }
+    }
+
+    /**
+     * Turns the result of a native table mutation into a message.
+     *
+     * Every mutation persists the table immediately, so a `false` here means the change is live
+     * but will not survive a restart. Saying so beats the old behaviour, where the edit was
+     * silently lost on the next boot.
+     */
+    private fun reportMutation(applied: Boolean) {
+        if (!applied) {
+            _message.value = context.getString(R.string.mem_table_autosave_failed)
         }
     }
 
     fun removeFreeze(address: Long) {
         viewModelScope.launch {
-            val entries = withContext(Dispatchers.IO) {
-                NativeLibrary.memFreezeRemove(address)
-                FreezeEntry.fromJson(NativeLibrary.memFreezeList())
+            val result = withContext(Dispatchers.IO) {
+                val applied = NativeLibrary.memFreezeRemove(address)
+                applied to FreezeEntry.fromJson(NativeLibrary.memFreezeList())
             }
-            _freezeEntries.value = entries
+            _freezeEntries.value = result.second
+            reportMutation(result.first)
         }
     }
 
     fun toggleFreeze(entry: FreezeEntry, enabled: Boolean) {
         viewModelScope.launch {
-            val entries = withContext(Dispatchers.IO) {
-                NativeLibrary.memFreezeSet(
+            val result = withContext(Dispatchers.IO) {
+                val applied = NativeLibrary.memFreezeSet(
                     entry.address, entry.type.id, entry.value, entry.description, enabled
                 )
-                FreezeEntry.fromJson(NativeLibrary.memFreezeList())
+                applied to FreezeEntry.fromJson(NativeLibrary.memFreezeList())
             }
-            _freezeEntries.value = entries
+            _freezeEntries.value = result.second
+            reportMutation(result.first)
         }
     }
 
     fun updateFreezeValue(entry: FreezeEntry, value: Long, description: String) {
         viewModelScope.launch {
-            val entries = withContext(Dispatchers.IO) {
-                NativeLibrary.memFreezeSet(entry.address, entry.type.id, value, description, entry.enabled)
-                FreezeEntry.fromJson(NativeLibrary.memFreezeList())
+            val result = withContext(Dispatchers.IO) {
+                val applied = NativeLibrary.memFreezeSet(
+                    entry.address, entry.type.id, value, description, entry.enabled
+                )
+                applied to FreezeEntry.fromJson(NativeLibrary.memFreezeList())
             }
-            _freezeEntries.value = entries
+            _freezeEntries.value = result.second
+            reportMutation(result.first)
         }
     }
 
     fun clearFreezes() {
         viewModelScope.launch {
-            withContext(Dispatchers.IO) {
-                NativeLibrary.memFreezeClear()
-                FreezeEntry.fromJson(NativeLibrary.memFreezeList())
-            }.also { _freezeEntries.value = it }
+            val result = withContext(Dispatchers.IO) {
+                val applied = NativeLibrary.memFreezeClear()
+                applied to FreezeEntry.fromJson(NativeLibrary.memFreezeList())
+            }
+            _freezeEntries.value = result.second
+            reportMutation(result.first)
+        }
+    }
+
+    /** Flushes the table so an edit made moments before closing is not lost. */
+    fun persistTable(programId: String) {
+        if (programId.isEmpty()) {
+            return
+        }
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) { NativeLibrary.memTableSave(programId) }
         }
     }
 
@@ -317,6 +348,12 @@ class MemoryEditorViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
+    /**
+     * Reloads the table for this title, replacing whatever is in memory.
+     *
+     * This is the explicit request to use the saved table, so it also activates the freezer —
+     * the silent load at boot stays inactive to keep a stale address from corrupting startup.
+     */
     fun loadTable(programId: String) {
         viewModelScope.launch {
             val ok = withContext(Dispatchers.IO) { NativeLibrary.memTableLoad(programId) }

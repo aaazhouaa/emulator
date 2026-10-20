@@ -716,6 +716,7 @@
     <string name="mem_freeze_edit_value">Edit value</string>
     <string name="mem_freeze_none">No frozen addresses</string>
     <string name="mem_freeze_count">%1$d frozen address(es)</string>
+    <string name="mem_freeze_all_disabled">%1$d address(es) loaded, none enabled</string>
     <string name="mem_freeze_value_title">Value to freeze</string>
     <string name="mem_freeze_description">Description</string>
     <string name="mem_table_save">Save</string>
@@ -740,6 +741,7 @@
     <string name="mem_refine_failed_generic">The filter could not be applied</string>
     <string name="mem_table_saved">Frozen addresses saved</string>
     <string name="mem_table_save_failed">Failed to save the address table</string>
+    <string name="mem_table_autosave_failed">Change applied, but saving it failed — it will be lost on restart</string>
     <string name="mem_table_loaded">Frozen addresses restored</string>
     <string name="mem_table_none">No saved address table for this title</string>
     <string name="emulation_amiibo">Amiibo</string>

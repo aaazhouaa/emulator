@@ -460,10 +460,10 @@ struct System::Impl {
             auto* freezer = system.GetFreezer();
             if (freezer != nullptr) {
                 freezer->LoadFromDisk(params.program_id, system.GetFreezeRegionBases());
-                // Do NOT auto-activate. A saved entry whose address is stale (or points at a
-                // critical field) would be written into the guest during startup and can
-                // corrupt the boot / hang the game. The user re-enables entries from the
-                // memory editor when they are actually needed.
+                // Do NOT auto-activate here. The addresses are relocated, but whether they still
+                // point at the intended field depends on where the game put it this run, and a
+                // wrong entry written during boot can corrupt it or hang the title. The editor
+                // shows the table and lets the user enable it once the value looks right.
             }
         }
 
@@ -1001,6 +1001,11 @@ Tools::Freezer::RegionBases System::GetFreezeRegionBases() const {
     bases.heap = GetInteger(page_table.GetHeapRegionStart());
     bases.alias = GetInteger(page_table.GetAliasRegionStart());
     bases.code = GetInteger(page_table.GetAliasCodeRegionStart());
+    // The sizes are needed so a saved address can be attributed to the region holding it, which
+    // is what makes the stored offset meaningful after the layout is randomized again.
+    bases.heap_size = page_table.GetHeapRegionSize();
+    bases.alias_size = page_table.GetAliasRegionSize();
+    bases.code_size = page_table.GetAliasCodeRegionSize();
     return bases;
 }
 

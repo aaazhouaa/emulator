@@ -612,13 +612,18 @@ object NativeLibrary {
 
     /**
      * Removes a frozen address. Takes an absolute address.
+     *
+     * @return Whether the table was written back to disk afterwards. The removal itself is
+     * already applied; a false return only means it will not survive a restart.
      */
-    external fun memFreezeRemove(address: Long)
+    external fun memFreezeRemove(address: Long): Boolean
 
     /**
      * Removes every frozen address.
+     *
+     * @return Whether the emptied table was written back to disk.
      */
-    external fun memFreezeClear()
+    external fun memFreezeClear(): Boolean
 
     /**
      * Returns the frozen address table as JSON, including each entry's live value.

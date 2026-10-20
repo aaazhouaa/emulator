@@ -14,6 +14,9 @@
 
 #include <nlohmann/json.hpp>
 
+#include <array>
+#include <utility>
+
 namespace Tools {
 namespace {
 
@@ -66,6 +69,30 @@ VAddr BaseOfRegion(FreezeRegion region, const Freezer::RegionBases& bases) {
         break;
     }
     return 0;
+}
+
+/// Finds the region an absolute address falls in, and its offset from that region's base.
+/// Addresses outside every region are stored as absolute, which is what a saved table written
+/// before anchoring existed also looks like, so old tables keep loading.
+void DeriveAnchor(VAddr address, const Freezer::RegionBases& bases, FreezeRegion& region,
+                  VAddr& offset) {
+    const std::array spans{
+        std::pair{FreezeRegion::Heap, std::pair{bases.heap, bases.heap_size}},
+        std::pair{FreezeRegion::Alias, std::pair{bases.alias, bases.alias_size}},
+        std::pair{FreezeRegion::Code, std::pair{bases.code, bases.code_size}},
+    };
+
+    for (const auto& [candidate, span] : spans) {
+        const auto [base, size] = span;
+        if (base != 0 && size != 0 && address >= base && address - base < size) {
+            region = candidate;
+            offset = address - base;
+            return;
+        }
+    }
+
+    region = FreezeRegion::Absolute;
+    offset = address;
 }
 
 } // Anonymous namespace
@@ -165,8 +192,7 @@ u64 Freezer::Freeze(VAddr address, u32 width) {
     }
 
     const auto current_value = MemoryReadWidth(*memory, width, address);
-    entries.push_back({address, width, current_value, {}, ScanType::U32, FreezeRegion::Absolute,
-                       true});
+    entries.push_back({address, width, current_value, {}, ScanType::U32, true});
 
     LOG_DEBUG(Common_Memory,
               "Freezing memory for address={:016X}, width={:02X}, current_value={:016X}", address,
@@ -198,7 +224,7 @@ void Freezer::FreezeAt(VAddr address, ScanType type, u64 value, std::string desc
                       address, value);
         } else {
             entries.push_back({address, static_cast<u32>(width), value, std::move(description),
-                               type, FreezeRegion::Absolute, true});
+                               type, true});
             LOG_DEBUG(Common_Memory, "Freezing address={:016X}, width={:02X}, value={:016X}",
                       address, width, value);
         }
@@ -292,6 +318,18 @@ void Freezer::SetEntryEnabled(VAddr address, bool enabled) {
     iter->enabled = enabled;
 }
 
+void Freezer::SyncActiveWithEntries() {
+    const bool any_enabled = [this] {
+        std::scoped_lock lock{entries_mutex};
+        return std::any_of(entries.begin(), entries.end(),
+                           [](const Entry& entry) { return entry.enabled; });
+    }();
+
+    // SetActive reschedules the callback when it turns the freezer on, and a freshly loaded
+    // table is primed so activation does not overwrite the values the user saved.
+    SetActive(any_enabled);
+}
+
 std::optional<Freezer::Entry> Freezer::GetEntry(VAddr address) const {
     std::scoped_lock lock{entries_mutex};
 
@@ -327,26 +365,6 @@ std::optional<u64> Freezer::GetCurrentValue(VAddr address) {
     } catch (...) {
         return std::nullopt;
     }
-}
-
-void Freezer::SetEntryRegion(VAddr address, FreezeRegion region, const RegionBases& bases) {
-    std::scoped_lock lock{entries_mutex};
-
-    const auto iter = FindEntry(address);
-    if (iter == entries.cend()) {
-        return;
-    }
-
-    const VAddr base = BaseOfRegion(region, bases);
-    if (region != FreezeRegion::Absolute && (base == 0 || address < base)) {
-        // The address does not live in the requested region; keep it absolute rather than
-        // storing a nonsensical offset.
-        iter->region = FreezeRegion::Absolute;
-        return;
-    }
-
-    iter->region = region;
-    iter->address = region == FreezeRegion::Absolute ? address : address - base;
 }
 
 Freezer::Entries::iterator Freezer::FindEntry(VAddr address) {
@@ -442,7 +460,7 @@ std::string Freezer::TablePath(u64 program_id) {
     return (dir / fmt::format("{:016X}.json", program_id)).string();
 }
 
-bool Freezer::SaveToDisk(u64 program_id) const {
+bool Freezer::SaveToDisk(u64 program_id, const RegionBases& bases) const {
     std::scoped_lock lock{entries_mutex};
 
     nlohmann::json root;
@@ -451,9 +469,16 @@ bool Freezer::SaveToDisk(u64 program_id) const {
 
     auto entries_json = nlohmann::json::array();
     for (const auto& entry : entries) {
+        // Anchor on the way out, never on the way in: `address` stays absolute for the whole
+        // lifetime of the entry, so a lookup can never miss because two representations of the
+        // same address disagreed.
+        FreezeRegion region{};
+        VAddr offset{};
+        DeriveAnchor(entry.address, bases, region, offset);
+
         auto item = nlohmann::json::object();
-        item["region"] = std::string{NameOf(entry.region)};
-        item["offset"] = fmt::format("{:016X}", entry.address);
+        item["region"] = std::string{NameOf(region)};
+        item["offset"] = fmt::format("{:016X}", offset);
         item["type"] = std::string{MemoryScanner::NameOf(entry.type)};
         item["frozen"] = entry.enabled;
         item["value"] = fmt::format("{:016X}", entry.value);
@@ -587,7 +612,6 @@ bool Freezer::LoadFromDisk(u64 program_id, const RegionBases& bases) {
         entry.value = value;
         entry.description = item.value("description", std::string{});
         entry.enabled = item.value("frozen", true);
-        entry.region = region;
 
         loaded.push_back(std::move(entry));
     }

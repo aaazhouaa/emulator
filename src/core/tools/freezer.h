@@ -54,20 +54,26 @@ enum class FreezeRegion : u8 {
 class Freezer {
 public:
     struct Entry {
+        /// Always an absolute address. The region anchor is deliberately not stored alongside it:
+        /// keeping both made a loaded entry lose track of which representation it was in, and the
+        /// frontend then handed back an address that no lookup could match.
         VAddr address{};
         u32 width{4};
         u64 value{};
         std::string description;
         ScanType type{ScanType::U32};
-        FreezeRegion region{FreezeRegion::Absolute};
         bool enabled{true};
     };
 
-    /// Receives the region bases needed to relocate saved entries.
+    /// Receives the region bases, and their sizes, needed to relocate saved entries.
+    /// The sizes are required to tell which region an address belongs to.
     struct RegionBases {
         VAddr heap{};
         VAddr alias{};
         VAddr code{};
+        u64 heap_size{};
+        u64 alias_size{};
+        u64 code_size{};
     };
 
     explicit Freezer(Core::Timing::CoreTiming& core_timing_, Core::System& system_);
@@ -117,11 +123,10 @@ public:
     // currently readable. Used by the frontend to display the current value next to the frozen one.
     std::optional<u64> GetCurrentValue(VAddr address);
 
-    // Assigns a region to an entry so that it can be relocated on the next boot.
-    void SetEntryRegion(VAddr address, FreezeRegion region, const RegionBases& bases);
-
-    // Serializes the table to <LoadDir>/cheat_tables/<program_id>.json. Returns false on I/O error.
-    bool SaveToDisk(u64 program_id) const;
+    // Serializes the table to <LoadDir>/cheat_tables/<program_id>.json. Returns false on I/O
+    // error. Each entry is written as a region plus an offset within that region, derived from
+    // `bases`, so the table can be relocated onto the next boot's address space layout.
+    bool SaveToDisk(u64 program_id, const RegionBases& bases) const;
 
     // Loads and relocates a previously saved table. Entries whose stored program id does not
     // match are discarded. Returns false if the file is absent or unreadable; the freezer is
@@ -133,6 +138,11 @@ public:
 
     // Builds the on-disk path for a program id.
     [[nodiscard]] static std::string TablePath(u64 program_id);
+
+    // Enables the freezer when at least one entry is enabled and parks it otherwise. Called
+    // after every change to the entry list so the 60Hz callback is never left spinning on an
+    // empty table, and so a freshly loaded table is enforced without a manual toggle.
+    void SyncActiveWithEntries();
 
 private:
     using Entries = std::vector<Entry>;
