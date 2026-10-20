@@ -223,7 +223,13 @@ std::function<bool(size_t, size_t)> CreateLongProgressCallback(JNIEnv* env, jobj
 
 } // namespace
 
-static EmulationSession s_instance;
+// Intentionally not a file-scope static: a global EmulationSession would be
+// constructed from the shared library's static initialisers during dlopen,
+// before the Java side ever gets a chance to call setAppDirectory(). Building
+// Core::System that early reaches PathManagerImpl::GetInstance(), whose
+// constructor calls Reinitialize() with an empty path -- which asserts on
+// Android. Deferring construction to the first GetInstance() call keeps the
+// ordering under the caller's control.
 
 EmulationSession::EmulationSession() {
     m_vfs = std::make_shared<FileSys::RealVfsFilesystem>();
@@ -299,7 +305,10 @@ EmulationSession::~EmulationSession() {
 }
 
 EmulationSession& EmulationSession::GetInstance() {
-    return s_instance;
+    // Lazily constructed on first use so that no Core::System is built during
+    // library load. See the comment above where s_instance used to live.
+    static EmulationSession instance;
+    return instance;
 }
 
 const Core::System& EmulationSession::System() const {

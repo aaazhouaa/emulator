@@ -76,6 +76,7 @@ public:
     PathManagerImpl& operator=(PathManagerImpl&&) = delete;
 
     [[nodiscard]] const fs::path& GetCitronPathImpl(CitronPath citron_path) {
+        EnsureInitialized();
         return citron_paths.at(citron_path);
     }
 
@@ -84,6 +85,7 @@ public:
     }
 
     void Reinitialize(fs::path citron_path = {}) {
+        initialized = true;
         fs::path citron_path_cache;
         fs::path citron_path_config;
 
@@ -96,7 +98,10 @@ public:
         citron_path_cache = citron_path / CACHE_DIR;
         citron_path_config = citron_path / CONFIG_DIR;
 #elif ANDROID
-        assert(!citron_path.empty());
+        if (citron_path.empty()) {
+            LOG_CRITICAL(Common_Filesystem, "Reinitialize() called with an empty path on Android");
+            return;
+        }
         citron_path_cache = citron_path / CACHE_DIR;
         citron_path_config = citron_path / CONFIG_DIR;
 #else
@@ -130,8 +135,31 @@ public:
     }
 
 private:
-    PathManagerImpl() {
+    PathManagerImpl() = default;
+
+    // Paths are derived from the platform default location the first time they
+    // are needed. This used to happen in the constructor, but on Android there
+    // is no meaningful default: the app-specific directory only becomes known
+    // once Java calls SetAppDirectory(), so constructing eagerly (or calling
+    // Reinitialize() with an empty path, which asserts) crashes during the
+    // first lookup instead.
+    void EnsureInitialized() {
+        if (initialized) {
+            return;
+        }
+
+#ifdef ANDROID
+        // There is no platform default to fall back on: Android paths come from
+        // Java via SetAppDirectory(). Reaching here means something asked for a
+        // path before that happened, so report it instead of asserting or
+        // returning a bogus empty path.
+        LOG_CRITICAL(Common_Filesystem,
+                     "Citron path requested before SetAppDirectory() was called");
+        return;
+#else
+        initialized = true;
         Reinitialize();
+#endif
     }
 
     ~PathManagerImpl() = default;
@@ -143,6 +171,7 @@ private:
     }
 
     std::unordered_map<CitronPath, fs::path> citron_paths;
+    bool initialized{false};
 };
 
 bool ValidatePath(const fs::path& path) {
