@@ -4,9 +4,9 @@
 plugins {
     id("com.android.application")
     id("kotlin-parcelize")
-    kotlin("plugin.serialization") version "2.4.0"
+    kotlin("plugin.serialization") version "2.4.20"
     id("androidx.navigation.safeargs.kotlin")
-    id("org.jlleitschuh.gradle.ktlint") version "14.2.0"
+    id("org.jlleitschuh.gradle.ktlint") version "12.3.0"
 }
 
 // Safe Args emits both Parcelable and Serializable branches without inspecting the
@@ -42,7 +42,7 @@ android {
     namespace = "org.citron.citron_emu"
 
     compileSdk = 37
-    ndkVersion = "26.1.10909125"
+    ndkVersion = "29.0.14206865"
 
     buildFeatures {
         viewBinding = true
@@ -185,7 +185,26 @@ android {
                     "-DCITRON_ENABLE_LTO=ON",
                     "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
                     "-DCMAKE_POLICY_VERSION_MINIMUM=3.5",
-                    "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON"
+                    "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON",
+                    // This container's NDK clang wrapper only ships Android runtime
+                    // stubs (libclang_rt.builtins-*-android.a) and cannot link
+                    // linux-gnu host programs. vcpkg's host-triplet compiler
+                    // detection inherits CMAKE_C_COMPILER from the Android
+                    // toolchain, so `vcpkg install` fails here. Dependencies are
+                    // pre-installed once by hand (see .vcpkg-build) and consumed
+                    // directly instead of being rebuilt on every configure.
+                    "-DVCPKG_MANIFEST_INSTALL=OFF",
+                    "-DVCPKG_INSTALLED_DIR=${rootDir}/../../.vcpkg-build",
+                    // Android builds ship no unit tests; without this, CTest's
+                    // BUILD_TESTING=ON default pulls in a required Catch2 that
+                    // is not part of the vcpkg manifest.
+                    "-DBUILD_TESTING=OFF",
+                    "-DCITRON_TESTS=OFF",
+                    // shader_tool is a host-side CLI for inspecting/validating
+                    // shaders; the APK never runs it. Leaving it on makes AGP
+                    // cross-compile it to arm64 and require the binary at
+                    // bin/shader_tool as a build input, which adds nothing here.
+                    "-DCITRON_SHADER_TOOL=OFF"
                 )
 
                 abiFilters("arm64-v8a", "x86_64")
@@ -210,19 +229,19 @@ dependencies {
 
     implementation("androidx.core:core-ktx:1.19.0")
     implementation("androidx.appcompat:appcompat:1.7.1")
-    implementation("androidx.recyclerview:recyclerview:1.4.0")
+    implementation("androidx.recyclerview:recyclerview:1.3.2")
     implementation("androidx.constraintlayout:constraintlayout:2.2.1")
     implementation("androidx.fragment:fragment-ktx:1.8.9")
-    implementation("androidx.documentfile:documentfile:1.1.0")
+    implementation("androidx.documentfile:documentfile:1.0.0")
     implementation("com.google.android.material:material:1.14.0")
-    implementation("androidx.preference:preference-ktx:1.2.1")
+    implementation("androidx.preference:preference:1.2.1")
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.11.0")
     implementation("io.coil-kt:coil:2.7.0")
     implementation("androidx.core:core-splashscreen:1.2.0")
-    implementation("androidx.window:window:1.5.1")
+    implementation("androidx.window:window:1.5.0")
     implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.2.0")
-    implementation("androidx.navigation:navigation-fragment-ktx:2.10.0")
-    implementation("androidx.navigation:navigation-ui-ktx:2.10.0")
+    implementation("androidx.navigation:navigation-fragment:2.9.5")
+    implementation("androidx.navigation:navigation-ui:2.9.5")
     implementation("info.debatty:java-string-similarity:2.0.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
 }
