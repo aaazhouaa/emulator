@@ -720,12 +720,11 @@
     <string name="mem_freeze_count">%1$d address(es), %2$d frozen</string>
     <string name="mem_freeze_value_title">Value to set</string>
     <string name="mem_freeze_description">Description</string>
-    <string name="mem_table_save">Save</string>
-    <string name="mem_table_reload">Reload</string>
     <string name="mem_table_clear">Clear</string>
     <string name="mem_freeze_pattern_unsupported">A byte-pattern address cannot be added to the table.</string>
     <string name="mem_freeze_add_title">Edit value</string>
     <string name="mem_freeze_added">Added to the address table</string>
+    <string name="mem_freeze_set_failed">The address table rejected the change</string>
     <string name="mem_freeze_clear_confirm">Remove every address from the table?</string>
     <string name="mem_confirm">OK</string>
     <string name="mem_scan_value_pattern">Bytes, hex (?? for wildcard)</string>
@@ -740,11 +739,6 @@
     <string name="mem_refine_failed_first">Scan for a value first</string>
     <string name="mem_refine_failed_type">This type cannot be filtered by value</string>
     <string name="mem_refine_failed_generic">The filter could not be applied</string>
-    <string name="mem_table_saved">Address table saved</string>
-    <string name="mem_table_save_failed">Failed to save the address table</string>
-    <string name="mem_table_autosave_failed">Change applied, but saving it failed — it will be lost on restart</string>
-    <string name="mem_table_loaded">Address table loaded</string>
-    <string name="mem_table_none">No saved address table for this title</string>
     <string name="emulation_amiibo">Amiibo</string>
     <string name="emulation_amiibo_load">Load</string>
     <string name="emulation_amiibo_remove">Remove</string>

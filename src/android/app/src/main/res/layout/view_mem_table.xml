@@ -8,47 +8,43 @@
     android:paddingHorizontal="12dp"
     android:paddingTop="8dp">
 
+    <!-- Entry count and the clear action share a row, and both are pinned to the same height so
+         the button does not tower over the caption next to it. -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:gravity="center_vertical"
         android:orientation="horizontal">
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/mem_table_save"
-            style="@style/Widget.Material3.Button.TonalButton"
+        <com.google.android.material.textview.MaterialTextView
+            android:id="@+id/mem_table_status"
+            style="@style/TextAppearance.Material3.BodySmall"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
+            android:layout_height="@dimen/mem_table_row_height"
             android:layout_weight="1"
-            android:text="@string/mem_table_save" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/mem_table_reload"
-            style="@style/Widget.Material3.Button.OutlinedButton"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:layout_marginStart="8dp"
-            android:text="@string/mem_table_reload" />
+            android:ellipsize="end"
+            android:gravity="center_vertical"
+            android:maxLines="1"
+            android:textAlignment="viewStart"
+            tools:text="0 address(es), 0 frozen" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/mem_table_clear"
-            style="@style/Widget.Material3.Button.TextButton"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="wrap_content"
+            android:layout_height="@dimen/mem_table_row_height"
             android:layout_marginStart="8dp"
-            android:text="@string/mem_table_clear" />
+            android:insetBottom="0dp"
+            android:insetTop="0dp"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:paddingHorizontal="14dp"
+            android:paddingVertical="0dp"
+            android:text="@string/mem_table_clear"
+            android:textSize="12sp"
+            app:strokeWidth="1dp" />
 
     </LinearLayout>
-
-    <com.google.android.material.textview.MaterialTextView
-        android:id="@+id/mem_table_status"
-        style="@style/TextAppearance.Material3.BodySmall"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:textAlignment="viewStart"
-        tools:text="No frozen addresses" />
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/mem_table_entries"

@@ -21,4 +21,7 @@
     <dimen name="elevated_app_bar">3dp</dimen>
 
     <dimen name="mapping_anim_size">75dp</dimen>
+
+    <!-- Height shared by the address-table row caption and its clear button. -->
+    <dimen name="mem_table_row_height">32dp</dimen>
 </resources>

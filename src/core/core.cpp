@@ -452,21 +452,10 @@ struct System::Impl {
             cheat_engine->Initialize();
         }
 
-        // Create the memory freezer used by the frontend memory editor and restore any frozen
-        // addresses the user saved for this title. Region bases are only valid once the
-        // application process exists, which is guaranteed at this point.
+        // Create the memory freezer used by the frontend memory editor. Entries are session-only:
+        // a saved address table is deliberately not restored, because the title is free to place
+        // the same field somewhere else on the next boot.
         memory_freezer.emplace(core_timing, system);
-        {
-            auto* freezer = system.GetFreezer();
-            if (freezer != nullptr) {
-                // `restore_enabled = false`: the table is restored for display, with every entry
-                // unticked and the freezer parked. The addresses are relocated, but whether they
-                // still point at the intended field depends on where the game put it this run, and
-                // a wrong entry written during boot can corrupt it or hang the title. The user
-                // ticks the entries that look right, and only then are values written.
-                freezer->LoadFromDisk(params.program_id, system.GetFreezeRegionBases(), false);
-            }
-        }
 
         // Register with applet manager
         // All threads are started, begin main process execution, now that we're in the clear
@@ -990,24 +979,6 @@ Tools::Freezer* System::GetFreezer() {
 const Tools::Freezer* System::GetFreezer() const {
     return impl->memory_freezer.has_value() ? std::addressof(impl->memory_freezer.value())
                                             : nullptr;
-}
-
-Tools::Freezer::RegionBases System::GetFreezeRegionBases() const {
-    Tools::Freezer::RegionBases bases{};
-    const auto* process = impl->kernel.ApplicationProcess();
-    if (process == nullptr) {
-        return bases;
-    }
-    const auto& page_table = process->GetPageTable();
-    bases.heap = GetInteger(page_table.GetHeapRegionStart());
-    bases.alias = GetInteger(page_table.GetAliasRegionStart());
-    bases.code = GetInteger(page_table.GetAliasCodeRegionStart());
-    // The sizes are needed so a saved address can be attributed to the region holding it, which
-    // is what makes the stored offset meaningful after the layout is randomized again.
-    bases.heap_size = page_table.GetHeapRegionSize();
-    bases.alias_size = page_table.GetAliasRegionSize();
-    bases.code_size = page_table.GetAliasCodeRegionSize();
-    return bases;
 }
 
 void System::SetFrontendAppletSet(Service::AM::Frontend::FrontendAppletSet&& set) {

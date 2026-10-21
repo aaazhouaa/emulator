@@ -30,19 +30,6 @@ struct EventType;
 
 namespace Tools {
 
-/// Guest memory regions that a frozen address can be relocated against.
-/// Stored instead of an absolute address so a saved table survives the address space
-/// randomization applied on every boot.
-enum class FreezeRegion : u8 {
-    Absolute = 0, ///< Address is used verbatim (main NSO text/rodata, which is not randomized).
-    Heap = 1,     ///< Address = heap base + offset.
-    Alias = 2,    ///< Address = alias region base + offset.
-    Code = 3,     ///< Address = code region base + offset.
-};
-
-[[nodiscard]] std::string_view NameOf(FreezeRegion region);
-[[nodiscard]] bool ParseFreezeRegion(std::string_view name, FreezeRegion& out);
-
 /**
  * This class allows the user to prevent an application from writing new values to certain memory
  * locations. This has a variety of uses when attempting to reverse a game.
@@ -54,26 +41,15 @@ enum class FreezeRegion : u8 {
 class Freezer {
 public:
     struct Entry {
-        /// Always an absolute address. The region anchor is deliberately not stored alongside it:
-        /// keeping both made a loaded entry lose track of which representation it was in, and the
-        /// frontend then handed back an address that no lookup could match.
+        /// Absolute address. Entries only live in memory for the current session: they are not
+        /// persisted, because the title is free to place the same field somewhere else on the next
+        /// boot, which made a saved address silently point at unrelated memory.
         VAddr address{};
         u32 width{4};
         u64 value{};
         std::string description;
         ScanType type{ScanType::U32};
         bool enabled{true};
-    };
-
-    /// Receives the region bases, and their sizes, needed to relocate saved entries.
-    /// The sizes are required to tell which region an address belongs to.
-    struct RegionBases {
-        VAddr heap{};
-        VAddr alias{};
-        VAddr code{};
-        u64 heap_size{};
-        u64 alias_size{};
-        u64 code_size{};
     };
 
     explicit Freezer(Core::Timing::CoreTiming& core_timing_, Core::System& system_);
@@ -122,26 +98,6 @@ public:
     // Reads the live value at the entry's address. Returns std::nullopt if the address is not
     // currently readable. Used by the frontend to display the current value next to the frozen one.
     std::optional<u64> GetCurrentValue(VAddr address);
-
-    // Serializes the table to <LoadDir>/cheat_tables/<program_id>.json. Returns false on I/O
-    // error. Each entry is written as a region plus an offset within that region, derived from
-    // `bases`, so the table can be relocated onto the next boot's address space layout.
-    bool SaveToDisk(u64 program_id, const RegionBases& bases) const;
-    // Loads and relocates a previously saved table. Entries whose stored program id does not
-    // match are discarded. Returns false if the file is absent or unreadable; the freezer is
-    // left untouched in that case.
-    //
-    // [restore_enabled] decides whether the saved tick state is applied. The silent load at boot
-    // passes false: the table is restored but nothing is enforced, so the checkbox honestly
-    // reflects that the user has to tick an entry before it takes effect. An explicit reload
-    // passes true.
-    bool LoadFromDisk(u64 program_id, const RegionBases& bases, bool restore_enabled);
-
-    // Replaces the whole entry list, used by the loader right after a successful load.
-    void LoadEntries(std::vector<Entry> loaded);
-
-    // Builds the on-disk path for a program id.
-    [[nodiscard]] static std::string TablePath(u64 program_id);
 
     // Enables the freezer when at least one entry is enabled and parks it otherwise. Called
     // after every change to the entry list so the 60Hz callback is never left spinning on an

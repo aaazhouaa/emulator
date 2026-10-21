@@ -1003,7 +1003,7 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
             }
         }
 
-        MemoryEditorFragment.newInstance(game.programId)
+        MemoryEditorFragment.newInstance()
             .show(parentFragmentManager, tag)
     }
 

@@ -901,9 +901,8 @@
     <string name="mem_freeze_count">%1$d 个地址，%2$d 个已冻结</string>
     <string name="mem_freeze_value_title">要修改的数值</string>
     <string name="mem_freeze_description">描述</string>
-    <string name="mem_table_save">保存</string>
-    <string name="mem_table_reload">载入</string>
     <string name="mem_table_clear">清空</string>
+    <string name="mem_freeze_set_failed">地址表未能应用该修改</string>
     <string name="mem_freeze_pattern_unsupported">字节模式地址无法加入地址表。</string>
     <string name="mem_freeze_add_title">修改数值</string>
     <string name="mem_freeze_added">已添加到地址表</string>
@@ -921,11 +920,6 @@
     <string name="mem_refine_failed_first">请先扫描数值</string>
     <string name="mem_refine_failed_type">该类型无法按数值筛选</string>
     <string name="mem_refine_failed_generic">无法应用筛选</string>
-    <string name="mem_table_saved">地址表已保存</string>
-    <string name="mem_table_save_failed">地址表保存失败</string>
-    <string name="mem_table_autosave_failed">改动已生效，但自动保存失败，重启后会丢失</string>
-    <string name="mem_table_loaded">地址表已载入</string>
-    <string name="mem_table_none">该游戏没有已保存的地址表</string>
 
     <!-- Amiibo -->
     <string name="emulation_amiibo">Amiibo</string>

@@ -359,9 +359,6 @@ public:
     [[nodiscard]] Tools::Freezer* GetFreezer();
     [[nodiscard]] const Tools::Freezer* GetFreezer() const;
 
-    /// Region bases used to relocate saved frozen entries across boots.
-    [[nodiscard]] Tools::Freezer::RegionBases GetFreezeRegionBases() const;
-
     void SetFrontendAppletSet(Service::AM::Frontend::FrontendAppletSet&& set);
 
     [[nodiscard]] Service::AM::Frontend::FrontendAppletHolder& GetFrontendAppletHolder();

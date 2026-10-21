@@ -278,24 +278,21 @@ class MemoryEditorViewModel(application: Application) : AndroidViewModel(applica
                 publishResultWindow(remaining)
                 _status.value = ScanStatus.Done(remaining)
             }
-            if (applied) {
-                _message.value = context.getString(R.string.mem_freeze_added)
-            } else {
-                reportMutation(false)
-            }
+            _message.value = context.getString(
+                if (applied) R.string.mem_freeze_added else R.string.mem_freeze_set_failed
+            )
         }
     }
 
     /**
-     * Turns the result of a native table mutation into a message.
+     * Reports a table mutation the freezer refused to apply.
      *
-     * Every mutation persists the table immediately, so a `false` here means the change is live
-     * but will not survive a restart. Saying so beats the old behaviour, where the edit was
-     * silently lost on the next boot.
+     * The address table is session-only, so there is no persistence outcome left to explain; a
+     * failure here means the freezer was unavailable or the type/address was rejected.
      */
-    private fun reportMutation(applied: Boolean) {
+    private fun reportMutationFailure(applied: Boolean) {
         if (!applied) {
-            _message.value = context.getString(R.string.mem_table_autosave_failed)
+            _message.value = context.getString(R.string.mem_freeze_set_failed)
         }
     }
 
@@ -306,7 +303,7 @@ class MemoryEditorViewModel(application: Application) : AndroidViewModel(applica
                 applied to FreezeEntry.fromJson(NativeLibrary.memFreezeList())
             }
             _freezeEntries.value = result.second
-            reportMutation(result.first)
+            reportMutationFailure(result.first)
         }
     }
 
@@ -319,7 +316,7 @@ class MemoryEditorViewModel(application: Application) : AndroidViewModel(applica
                 applied to FreezeEntry.fromJson(NativeLibrary.memFreezeList())
             }
             _freezeEntries.value = result.second
-            reportMutation(result.first)
+            reportMutationFailure(result.first)
         }
     }
 
@@ -332,7 +329,7 @@ class MemoryEditorViewModel(application: Application) : AndroidViewModel(applica
                 applied to FreezeEntry.fromJson(NativeLibrary.memFreezeList())
             }
             _freezeEntries.value = result.second
-            reportMutation(result.first)
+            reportMutationFailure(result.first)
         }
     }
 
@@ -343,42 +340,7 @@ class MemoryEditorViewModel(application: Application) : AndroidViewModel(applica
                 applied to FreezeEntry.fromJson(NativeLibrary.memFreezeList())
             }
             _freezeEntries.value = result.second
-            reportMutation(result.first)
-        }
-    }
-
-    /** Flushes the table so an edit made moments before closing is not lost. */
-    fun persistTable(programId: String) {
-        if (programId.isEmpty()) {
-            return
-        }
-        viewModelScope.launch {
-            withContext(Dispatchers.IO) { NativeLibrary.memTableSave(programId) }
-        }
-    }
-
-    fun saveTable(programId: String) {
-        viewModelScope.launch {
-            val ok = withContext(Dispatchers.IO) { NativeLibrary.memTableSave(programId) }
-            _message.value = context.getString(
-                if (ok) R.string.mem_table_saved else R.string.mem_table_save_failed
-            )
-        }
-    }
-
-    /**
-     * Reloads the table for this title, replacing whatever is in memory.
-     *
-     * This is the explicit request to use the saved table, so it also activates the freezer —
-     * the silent load at boot stays inactive to keep a stale address from corrupting startup.
-     */
-    fun loadTable(programId: String) {
-        viewModelScope.launch {
-            val ok = withContext(Dispatchers.IO) { NativeLibrary.memTableLoad(programId) }
-            _message.value = context.getString(
-                if (ok) R.string.mem_table_loaded else R.string.mem_table_none
-            )
-            refreshFreezeEntries()
+            reportMutationFailure(result.first)
         }
     }
 

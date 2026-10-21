@@ -2,9 +2,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include "common/assert.h"
-#include "common/fs/file.h"
-#include "common/fs/fs.h"
-#include "common/fs/path_util.h"
 #include "common/logging.h"
 #include "core/core.h"
 #include "core/core_timing.h"
@@ -12,16 +9,12 @@
 #include "core/memory.h"
 #include "core/tools/freezer.h"
 
-#include <nlohmann/json.hpp>
-
-#include <array>
 #include <utility>
 
 namespace Tools {
 namespace {
 
 constexpr auto memory_freezer_ns = std::chrono::nanoseconds{1000000000 / 60};
-constexpr int TableFormatVersion = 1;
 
 u64 MemoryReadWidth(Core::Memory::Memory& memory, u32 width, VAddr addr) {
     switch (width) {
@@ -57,70 +50,7 @@ void MemoryWriteWidth(Core::Memory::Memory& memory, u32 width, VAddr addr, u64 v
     }
 }
 
-VAddr BaseOfRegion(FreezeRegion region, const Freezer::RegionBases& bases) {
-    switch (region) {
-    case FreezeRegion::Heap:
-        return bases.heap;
-    case FreezeRegion::Alias:
-        return bases.alias;
-    case FreezeRegion::Code:
-        return bases.code;
-    case FreezeRegion::Absolute:
-        break;
-    }
-    return 0;
-}
-
-/// Finds the region an absolute address falls in, and its offset from that region's base.
-/// Addresses outside every region are stored as absolute, which is what a saved table written
-/// before anchoring existed also looks like, so old tables keep loading.
-void DeriveAnchor(VAddr address, const Freezer::RegionBases& bases, FreezeRegion& region,
-                  VAddr& offset) {
-    const std::array spans{
-        std::pair{FreezeRegion::Heap, std::pair{bases.heap, bases.heap_size}},
-        std::pair{FreezeRegion::Alias, std::pair{bases.alias, bases.alias_size}},
-        std::pair{FreezeRegion::Code, std::pair{bases.code, bases.code_size}},
-    };
-
-    for (const auto& [candidate, span] : spans) {
-        const auto [base, size] = span;
-        if (base != 0 && size != 0 && address >= base && address - base < size) {
-            region = candidate;
-            offset = address - base;
-            return;
-        }
-    }
-
-    region = FreezeRegion::Absolute;
-    offset = address;
-}
-
 } // Anonymous namespace
-
-std::string_view NameOf(FreezeRegion region) {
-    switch (region) {
-    case FreezeRegion::Absolute:
-        return "absolute";
-    case FreezeRegion::Heap:
-        return "heap";
-    case FreezeRegion::Alias:
-        return "alias";
-    case FreezeRegion::Code:
-        return "code";
-    }
-    return "absolute";
-}
-
-bool ParseFreezeRegion(std::string_view name, FreezeRegion& out) {
-    for (const auto candidate :
-         {FreezeRegion::Absolute, FreezeRegion::Heap, FreezeRegion::Alias, FreezeRegion::Code}) {
-        if (NameOf(candidate) == name) {
-            out = candidate;
-            return true;
-        }
-    }
-    return false;
-}
 
 Freezer::Freezer(Core::Timing::CoreTiming& core_timing_, Core::System& system_)
     : core_timing{core_timing_}, system{system_} {
@@ -445,183 +375,6 @@ void Freezer::FillEntryReads() {
                       entry.address);
         }
     }
-}
-
-void Freezer::LoadEntries(std::vector<Entry> loaded) {
-    std::scoped_lock lock{entries_mutex};
-
-    entries = std::move(loaded);
-    // Loaded values are authoritative; do not let the first activation overwrite them.
-    entries_primed.store(true, std::memory_order_relaxed);
-}
-
-std::string Freezer::TablePath(u64 program_id) {
-    const auto dir = Common::FS::GetCitronPath(Common::FS::CitronPath::LoadDir) / "cheat_tables";
-    return (dir / fmt::format("{:016X}.json", program_id)).string();
-}
-
-bool Freezer::SaveToDisk(u64 program_id, const RegionBases& bases) const {
-    std::scoped_lock lock{entries_mutex};
-
-    nlohmann::json root;
-    root["version"] = TableFormatVersion;
-    root["program_id"] = fmt::format("{:016X}", program_id);
-
-    auto entries_json = nlohmann::json::array();
-    for (const auto& entry : entries) {
-        // Anchor on the way out, never on the way in: `address` stays absolute for the whole
-        // lifetime of the entry, so a lookup can never miss because two representations of the
-        // same address disagreed.
-        FreezeRegion region{};
-        VAddr offset{};
-        DeriveAnchor(entry.address, bases, region, offset);
-
-        auto item = nlohmann::json::object();
-        item["region"] = std::string{NameOf(region)};
-        item["offset"] = fmt::format("{:016X}", offset);
-        item["type"] = std::string{MemoryScanner::NameOf(entry.type)};
-        item["frozen"] = entry.enabled;
-        item["value"] = fmt::format("{:016X}", entry.value);
-        item["description"] = entry.description;
-        entries_json.push_back(std::move(item));
-    }
-    root["entries"] = std::move(entries_json);
-
-    const auto path = TablePath(program_id);
-    if (!Common::FS::CreateParentDirs(path)) {
-        LOG_ERROR(Common_Memory, "Failed to create the cheat table directory for {:016X}",
-                  program_id);
-        return false;
-    }
-
-    const auto text = root.dump(2);
-    // Write to a sibling file first so an interrupted save cannot truncate a good table.
-    const auto temporary = path + ".tmp";
-    if (Common::FS::WriteStringToFile(temporary, Common::FS::FileType::TextFile, text) !=
-        text.size()) {
-        LOG_ERROR(Common_Memory, "Failed to write the cheat table for {:016X}", program_id);
-        void(Common::FS::RemoveFile(temporary));
-        return false;
-    }
-
-    std::error_code rename_error;
-    std::filesystem::rename(temporary, path, rename_error);
-    if (rename_error) {
-        LOG_ERROR(Common_Memory, "Failed to replace the cheat table for {:016X}: {}", program_id,
-                  rename_error.message());
-        void(Common::FS::RemoveFile(temporary));
-        return false;
-    }
-
-    LOG_INFO(Common_Memory, "Saved {} frozen entries for {:016X}", entries.size(), program_id);
-    return true;
-}
-
-bool Freezer::LoadFromDisk(u64 program_id, const RegionBases& bases, bool restore_enabled) {
-    const auto path = TablePath(program_id);
-    if (!Common::FS::Exists(path)) {
-        return false;
-    }
-
-    const auto text = Common::FS::ReadStringFromFile(path, Common::FS::FileType::TextFile);
-    if (text.empty()) {
-        LOG_WARNING(Common_Memory, "Cheat table for {:016X} is empty or unreadable", program_id);
-        return false;
-    }
-
-    nlohmann::json root;
-    try {
-        root = nlohmann::json::parse(text);
-    } catch (const nlohmann::json::exception& e) {
-        LOG_ERROR(Common_Memory, "Failed to parse the cheat table for {:016X}: {}", program_id,
-                  e.what());
-        return false;
-    }
-
-    if (!root.is_object()) {
-        return false;
-    }
-
-    // A table saved for a different title must not be applied to this one.
-    const auto stored_program = root.value("program_id", std::string{});
-    if (stored_program != fmt::format("{:016X}", program_id)) {
-        LOG_WARNING(Common_Memory, "Ignoring cheat table {:016X}: it belongs to {}", program_id,
-                    stored_program);
-        return false;
-    }
-
-    const int version = root.value("version", 0);
-    if (version != TableFormatVersion) {
-        LOG_WARNING(Common_Memory, "Ignoring cheat table {:016X}: unsupported version {}",
-                    program_id, version);
-        return false;
-    }
-
-    std::vector<Entry> loaded;
-    const auto entries_json = root.find("entries");
-    if (entries_json == root.end() || !entries_json->is_array()) {
-        return false;
-    }
-
-    for (const auto& item : *entries_json) {
-        if (!item.is_object()) {
-            continue;
-        }
-
-        Entry entry;
-
-        FreezeRegion region{FreezeRegion::Absolute};
-        if (!ParseFreezeRegion(item.value("region", std::string{"absolute"}), region)) {
-            region = FreezeRegion::Absolute;
-        }
-
-        ScanType type{ScanType::U32};
-        if (!MemoryScanner::ParseScanType(item.value("type", std::string{"u32"}), type)) {
-            type = ScanType::U32;
-        }
-        const auto width = MemoryScanner::WidthOf(type);
-        if (width == 0) {
-            continue;
-        }
-
-        u64 offset{};
-        try {
-            offset = std::stoull(item.value("offset", std::string{"0"}), nullptr, 16);
-        } catch (const std::exception&) {
-            continue;
-        }
-
-        u64 value{};
-        try {
-            value = std::stoull(item.value("value", std::string{"0"}), nullptr, 16);
-        } catch (const std::exception&) {
-            value = 0;
-        }
-
-        const VAddr base = BaseOfRegion(region, bases);
-        if (region != FreezeRegion::Absolute && base == 0) {
-            // The region does not exist in this session, so the entry cannot be relocated.
-            LOG_DEBUG(Common_Memory, "Dropping frozen entry: region {} is unavailable",
-                      NameOf(region));
-            continue;
-        }
-
-        entry.address = region == FreezeRegion::Absolute ? offset : base + offset;
-        entry.width = static_cast<u32>(width);
-        entry.type = type;
-        entry.value = value;
-        entry.description = item.value("description", std::string{});
-        // A table restored at boot comes back unticked: the addresses were relocated, but whether
-        // they still point at the intended field is unknown, so nothing is written until the user
-        // asks for it. Only an explicit reload keeps the saved tick state.
-        entry.enabled = restore_enabled && item.value("frozen", true);
-
-        loaded.push_back(std::move(entry));
-    }
-
-    LOG_INFO(Common_Memory, "Loaded {} frozen entries for {:016X}", loaded.size(), program_id);
-    LoadEntries(std::move(loaded));
-    return true;
 }
 
 } // namespace Tools

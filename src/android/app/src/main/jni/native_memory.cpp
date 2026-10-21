@@ -365,36 +365,13 @@ Tools::ScanParams ParseScanParams(const std::string& json, bool& ok) {
     return params;
 }
 
-/// Program id of the running application, or 0 when no process is loaded.
-/// The system accessor dereferences the application process unconditionally, which is not safe
-/// here: these handlers can be reached from the editor while a title is shutting down.
-u64 CurrentProgramId(Core::System& system) {
-    const auto* process = system.ApplicationProcess();
-    if (process == nullptr) {
-        return 0;
-    }
-    return process->GetProgramId();
-}
-
 /// Applies the current entry list to the per-frame freezer: it runs while at least one entry is
 /// enabled and is parked otherwise, so an emptied table does not leave the 60Hz callback
-/// spinning for the rest of the session, and a freshly loaded table is enforced immediately.
+/// spinning for the rest of the session, and a newly enabled entry is enforced immediately.
 void RefreshFreezerActiveState(Core::System& system) {
     if (auto* freezer = system.GetFreezer(); freezer != nullptr) {
         freezer->SyncActiveWithEntries();
     }
-}
-
-/// Persists the table for this title, so changes made in the editor survive a restart.
-///
-/// Returns false when the table could not be written, including when the program id is unknown;
-/// the frontend then reports the change as unsaved instead of silently dropping it.
-bool PersistTable(Core::System& system, u64 program_id) {
-    auto* freezer = system.GetFreezer();
-    if (freezer == nullptr || program_id == 0) {
-        return false;
-    }
-    return freezer->SaveToDisk(program_id, system.GetFreezeRegionBases());
 }
 
 std::string DumpFreezeEntries(Core::System& system) {
@@ -638,11 +615,7 @@ jboolean Java_org_citron_citron_1emu_NativeLibrary_memFreezeSet(JNIEnv* env, job
     // Only keep the per-frame freezer running while at least one entry is enabled. A freshly
     // added address is written once (above) and then left alone until the user checks the box.
     RefreshFreezerActiveState(system);
-
-    // Write the table through immediately: the editor used to require an explicit save, and a
-    // restart silently rolled back every edit made since the last one. The return value tells the
-    // frontend whether the change actually made it to disk.
-    return PersistTable(system, CurrentProgramId(system)) ? JNI_TRUE : JNI_FALSE;
+    return JNI_TRUE;
 }
 
 jboolean Java_org_citron_citron_1emu_NativeLibrary_memFreezeRemove(JNIEnv* env, jobject jobj,
@@ -661,7 +634,7 @@ jboolean Java_org_citron_citron_1emu_NativeLibrary_memFreezeRemove(JNIEnv* env, 
 
     // Removing the last enabled entry stops the frame callback.
     RefreshFreezerActiveState(system);
-    return PersistTable(system, CurrentProgramId(system)) ? JNI_TRUE : JNI_FALSE;
+    return JNI_TRUE;
 }
 
 jboolean Java_org_citron_citron_1emu_NativeLibrary_memFreezeClear(JNIEnv* env, jobject jobj) {
@@ -677,59 +650,12 @@ jboolean Java_org_citron_citron_1emu_NativeLibrary_memFreezeClear(JNIEnv* env, j
     freezer->Clear();
     // The table is empty now, so park the frame callback instead of leaving it spinning.
     RefreshFreezerActiveState(system);
-    // Persist the empty table, otherwise the old one is restored on the next boot.
-    return PersistTable(system, CurrentProgramId(system)) ? JNI_TRUE : JNI_FALSE;
+    return JNI_TRUE;
 }
 
 jstring Java_org_citron_citron_1emu_NativeLibrary_memFreezeList(JNIEnv* env, jobject jobj) {
     auto& system = EmulationSession::GetInstance().System();
     return Common::Android::ToJString(env, DumpFreezeEntries(system));
-}
-
-jboolean Java_org_citron_citron_1emu_NativeLibrary_memTableSave(JNIEnv* env, jobject jobj,
-                                                                jstring jprogramId) {
-    auto& session = EmulationSession::GetInstance();
-    const auto lock = session.AcquireSessionLock();
-    auto& system = session.System();
-
-    auto* freezer = system.GetFreezer();
-    if (freezer == nullptr) {
-        return JNI_FALSE;
-    }
-
-    const auto program_id = EmulationSession::GetProgramId(env, jprogramId);
-    if (program_id == 0) {
-        return JNI_FALSE;
-    }
-
-    // Anchors are derived here, from this session's region bases, rather than stored on the
-    // entry: that keeps the in-memory address absolute and the on-disk form relocatable.
-    return PersistTable(system, program_id) ? JNI_TRUE : JNI_FALSE;
-}
-
-jboolean Java_org_citron_citron_1emu_NativeLibrary_memTableLoad(JNIEnv* env, jobject jobj,
-                                                                jstring jprogramId) {
-    auto& session = EmulationSession::GetInstance();
-    const auto lock = session.AcquireSessionLock();
-    auto& system = session.System();
-
-    auto* freezer = system.GetFreezer();
-    if (freezer == nullptr) {
-        return JNI_FALSE;
-    }
-
-    const auto program_id = EmulationSession::GetProgramId(env, jprogramId);
-    if (program_id == 0) {
-        return JNI_FALSE;
-    }
-
-    // `restore_enabled = true`: this is an explicit reload, so the saved tick state is what the
-    // user asked for. It also activates the freezer, unlike the silent load at boot.
-    if (!freezer->LoadFromDisk(program_id, system.GetFreezeRegionBases(), true)) {
-        return JNI_FALSE;
-    }
-    RefreshFreezerActiveState(system);
-    return JNI_TRUE;
 }
 
 } // extern "C"

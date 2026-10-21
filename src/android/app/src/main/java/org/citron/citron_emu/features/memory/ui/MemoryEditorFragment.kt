@@ -57,12 +57,8 @@ class MemoryEditorFragment : DialogFragment() {
     /** Whether the single value field is asking for the next-scan value. */
     private var refineModeActive = false
 
-    private var gameProgramId: String = ""
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val args = requireArguments()
-        gameProgramId = args.getString(ARG_PROGRAM_ID).orEmpty()
         // Left-hand side panel matching the in-game drawer.
         setStyle(STYLE_NO_TITLE, R.style.ThemeOverlay_Citron_SidePanel)
     }
@@ -193,8 +189,6 @@ class MemoryEditorFragment : DialogFragment() {
 
     private fun setupTableControls() {
         val panel = binding.memoryEditorTablePanel
-        panel.memTableSave.setOnClickListener { viewModel.saveTable(gameProgramId) }
-        panel.memTableReload.setOnClickListener { viewModel.loadTable(gameProgramId) }
         panel.memTableClear.setOnClickListener { confirmClearTable() }
     }
 
@@ -431,9 +425,6 @@ class MemoryEditorFragment : DialogFragment() {
     }
 
     override fun onDestroy() {
-        // Flush as a backstop: every mutation already persists, but a table left untouched while
-        // the game was paused would otherwise rely on that alone.
-        viewModel.persistTable(gameProgramId)
         // Tell the host to resume emulation; a dismissed dialog must not leave the game paused.
         parentFragmentManager.setFragmentResult(REQUEST_KEY, Bundle.EMPTY)
         super.onDestroy()
@@ -442,14 +433,11 @@ class MemoryEditorFragment : DialogFragment() {
     companion object {
         const val TAG = "MemoryEditorFragment"
         const val REQUEST_KEY = "MemoryEditorFragment.result"
-        private const val ARG_PROGRAM_ID = "programId"
         private const val FLOAT_EPSILON = 0.001
         private const val WINDOW_WIDTH_RATIO = 0.4f
 
-        fun newInstance(programId: String): MemoryEditorFragment {
-            val fragment = MemoryEditorFragment()
-            fragment.arguments = Bundle().apply { putString(ARG_PROGRAM_ID, programId) }
-            return fragment
-        }
+        // No arguments: the address table is session-only, so the editor no longer needs the
+        // program id it used to key the saved table on.
+        fun newInstance(): MemoryEditorFragment = MemoryEditorFragment()
     }
 }

@@ -623,15 +623,12 @@ object NativeLibrary {
     /**
      * Removes a frozen address. Takes an absolute address.
      *
-     * @return Whether the table was written back to disk afterwards. The removal itself is
-     * already applied; a false return only means it will not survive a restart.
+     * @return Whether the removal was applied; entries are session-only, nothing is persisted.
      */
     external fun memFreezeRemove(address: Long): Boolean
 
     /**
      * Removes every frozen address.
-     *
-     * @return Whether the emptied table was written back to disk.
      */
     external fun memFreezeClear(): Boolean
 
@@ -639,16 +636,6 @@ object NativeLibrary {
      * Returns the frozen address table as JSON, including each entry's live value.
      */
     external fun memFreezeList(): String
-
-    /**
-     * Persists the frozen address table for the given title.
-     */
-    external fun memTableSave(programId: String): Boolean
-
-    /**
-     * Reloads the frozen address table for the given title, relocating region-anchored entries.
-     */
-    external fun memTableLoad(programId: String): Boolean
 
     /**
      * Removes an installed base game for a given [programId].
