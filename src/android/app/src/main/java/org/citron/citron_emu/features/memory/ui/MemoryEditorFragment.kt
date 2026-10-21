@@ -4,13 +4,17 @@
 package org.citron.citron_emu.features.memory.ui
 
 import android.app.Dialog
+import android.content.Context
 import android.os.Bundle
+import android.text.InputType
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.ArrayAdapter
+import android.widget.Filter
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.core.widget.doAfterTextChanged
@@ -20,12 +24,16 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import androidx.viewpager2.widget.ViewPager2
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.google.android.material.tabs.TabLayout
 import kotlinx.coroutines.launch
 import org.citron.citron_emu.R
+import org.citron.citron_emu.databinding.DialogMemTypeHelpBinding
 import org.citron.citron_emu.databinding.DialogMemValueBinding
 import org.citron.citron_emu.databinding.FragmentMemoryEditorBinding
+import org.citron.citron_emu.databinding.ViewMemScanBinding
+import org.citron.citron_emu.databinding.ViewMemTableBinding
 import org.citron.citron_emu.features.memory.MemoryEditorViewModel
 import org.citron.citron_emu.features.memory.adapter.FreezeEntryAdapter
 import org.citron.citron_emu.features.memory.adapter.ScanResultAdapter
@@ -34,6 +42,72 @@ import org.citron.citron_emu.features.memory.model.MemCompare
 import org.citron.citron_emu.features.memory.model.MemRegion
 import org.citron.citron_emu.features.memory.model.MemValueType
 import org.citron.citron_emu.utils.ViewUtils.setVisible
+
+private data class MemTypeItem(
+    val type: MemValueType,
+    val title: String,
+    val description: String
+) {
+    override fun toString(): String = title
+}
+
+private class MemTypeAdapter(
+    context: Context,
+    private val items: List<MemTypeItem>
+) : ArrayAdapter<MemTypeItem>(context, 0, items) {
+
+    private val noFilter = object : Filter() {
+        override fun performFiltering(constraint: CharSequence?): FilterResults {
+            return FilterResults().apply {
+                values = items
+                count = items.size
+            }
+        }
+
+        @Suppress("UNCHECKED_CAST")
+        override fun publishResults(constraint: CharSequence?, results: FilterResults?) {
+            notifyDataSetChanged()
+        }
+
+        override fun convertResultToString(resultValue: Any?): CharSequence {
+            return (resultValue as? MemTypeItem)?.title ?: super.convertResultToString(resultValue)
+        }
+    }
+
+    override fun getFilter(): Filter = noFilter
+
+    override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+        val view = convertView ?: LayoutInflater.from(context)
+            .inflate(R.layout.list_item_mem_scan_type, parent, false)
+        val item = getItem(position) ?: return view
+        view.findViewById<TextView>(R.id.type_title).text = item.title
+        view.findViewById<TextView>(R.id.type_desc).text = item.description
+        return view
+    }
+}
+
+private class MemoryPagerAdapter(
+    private val scanView: View,
+    private val tableView: View
+) : RecyclerView.Adapter<MemoryPagerAdapter.PageViewHolder>() {
+
+    class PageViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView)
+
+    override fun getItemCount(): Int = 2
+    override fun getItemViewType(position: Int): Int = position
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): PageViewHolder {
+        val view = if (viewType == 0) scanView else tableView
+        (view.parent as? ViewGroup)?.removeView(view)
+        view.layoutParams = ViewGroup.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.MATCH_PARENT
+        )
+        return PageViewHolder(view)
+    }
+
+    override fun onBindViewHolder(holder: PageViewHolder, position: Int) = Unit
+}
 
 /**
  * Side-panel memory editor: value scanning, result refinement, and a frozen address table.
@@ -46,13 +120,19 @@ class MemoryEditorFragment : DialogFragment() {
     private var _binding: FragmentMemoryEditorBinding? = null
     private val binding get() = _binding!!
 
-    private val viewModel: MemoryEditorViewModel by activityViewModels()
+    private var _scanBinding: ViewMemScanBinding? = null
+    private val scanBinding get() = _scanBinding!!
 
+    private var _tableBinding: ViewMemTableBinding? = null
+    private val tableBinding get() = _tableBinding!!
+
+    private val viewModel: MemoryEditorViewModel by activityViewModels()
     private lateinit var scanAdapter: ScanResultAdapter
     private lateinit var freezeAdapter: FreezeEntryAdapter
 
     private var scanRegion: MemRegion? = null
     private var selectedTypes: List<MemValueType> = MemValueType.scanTypes
+    private var selectedScanType: MemValueType = MemValueType.U32
 
     /** Whether the single value field is asking for the next-scan value. */
     private var refineModeActive = false
@@ -91,18 +171,30 @@ class MemoryEditorFragment : DialogFragment() {
         savedInstanceState: Bundle?
     ): View {
         _binding = FragmentMemoryEditorBinding.inflate(inflater, container, false)
+        _scanBinding = ViewMemScanBinding.inflate(inflater, container, false)
+        _tableBinding = ViewMemTableBinding.inflate(inflater, container, false)
         return binding.root
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
+        binding.memoryEditorPager.adapter = MemoryPagerAdapter(scanBinding.root, tableBinding.root)
+        binding.memoryEditorPager.registerOnPageChangeCallback(object :
+            ViewPager2.OnPageChangeCallback() {
+            override fun onPageSelected(position: Int) {
+                if (position == 1) {
+                    viewModel.refreshFreezeEntries()
+                }
+            }
+        })
+
         scanAdapter = ScanResultAdapter(
             scope = viewLifecycleOwner.lifecycleScope,
             pageLoader = viewModel::loadResultPage,
             onAdd = { address -> promptAddToTable(address) }
         )
-        binding.memoryEditorScanPanel.memScanResults.apply {
+        scanBinding.memScanResults.apply {
             layoutManager = LinearLayoutManager(requireContext())
             adapter = scanAdapter
         }
@@ -112,12 +204,13 @@ class MemoryEditorFragment : DialogFragment() {
             onEdit = ::promptEditValue,
             onDelete = { entry -> viewModel.removeFreeze(entry.address) }
         )
-        binding.memoryEditorTablePanel.memTableEntries.apply {
+        tableBinding.memTableEntries.apply {
             layoutManager = LinearLayoutManager(requireContext())
             adapter = freezeAdapter
         }
 
-        setupTabs()
+        setupNavigation()
+        setupHelpButton()
         setupScanControls()
         setupTableControls()
 
@@ -126,41 +219,89 @@ class MemoryEditorFragment : DialogFragment() {
         observeState()
     }
 
-    private fun setupTabs() {
-        binding.memoryEditorTabs.addOnTabSelectedListener(object :
-            TabLayout.OnTabSelectedListener {
-            override fun onTabSelected(tab: TabLayout.Tab) {
-                val showScan = tab.position == 0
-                binding.memoryEditorScanPanel.root.setVisible(visible = showScan, gone = true)
-                binding.memoryEditorTablePanel.root.setVisible(visible = !showScan, gone = true)
-                if (!showScan) {
-                    viewModel.refreshFreezeEntries()
-                }
-            }
+    private fun setupNavigation() {
+        scanBinding.memScanGoTable.setOnClickListener {
+            binding.memoryEditorPager.setCurrentItem(1, true)
+        }
+        tableBinding.memTableGoScan.setOnClickListener {
+            binding.memoryEditorPager.setCurrentItem(0, true)
+        }
+    }
 
-            override fun onTabUnselected(tab: TabLayout.Tab) = Unit
-            override fun onTabReselected(tab: TabLayout.Tab) = Unit
-        })
+    private fun setupHelpButton() {
+        scanBinding.memScanHelp.setOnClickListener {
+            showTypeHelpDialog()
+        }
+    }
+
+    private fun showTypeHelpDialog() {
+        val dialogBinding = DialogMemTypeHelpBinding.inflate(layoutInflater)
+        val inflater = LayoutInflater.from(requireContext())
+        for (type in selectedTypes) {
+            val itemView = inflater.inflate(
+                R.layout.list_item_mem_scan_type,
+                dialogBinding.memTypeHelpContainer,
+                false
+            )
+            val typeExtra = if (type.width > 0) {
+                getString(R.string.mem_type_bytes_format, type.id.uppercase(), type.width)
+            } else {
+                getString(R.string.mem_type_bytes_var, type.id.uppercase())
+            }
+            itemView.findViewById<TextView>(R.id.type_title).text =
+                "${typeTitle(type)} · $typeExtra"
+            itemView.findViewById<TextView>(R.id.type_desc).text = typeDesc(type)
+            itemView.setPadding(0, 0, 0, (resources.displayMetrics.density * 12).toInt())
+            dialogBinding.memTypeHelpContainer.addView(itemView)
+        }
+
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle(R.string.mem_scan_type_help_title)
+            .setView(dialogBinding.root)
+            .setPositiveButton(android.R.string.ok, null)
+            .show()
     }
 
     private fun setupScanControls() {
-        val panel = binding.memoryEditorScanPanel
+        val panel = scanBinding
 
-        panel.memScanType.setAdapter(
-            ArrayAdapter(
-                requireContext(),
-                android.R.layout.simple_list_item_1,
-                selectedTypes.map { describeType(it) }
+        val typeItems = selectedTypes.map { type ->
+            MemTypeItem(
+                type = type,
+                title = typeTitle(type),
+                description = typeDesc(type)
             )
-        )
+        }
+        val typeAdapter = MemTypeAdapter(requireContext(), typeItems)
+        panel.memScanType.setAdapter(typeAdapter)
+
+        // Dropdown menu width: give it comfortable width so descriptions don't wrap awkwardly.
+        panel.memScanType.dropDownWidth = (resources.displayMetrics.density * 280).toInt()
+
         val savedType = selectedTypes.firstOrNull { it.id == viewModel.selectedTypeId }
             ?: selectedTypes.first()
-        panel.memScanType.setText(describeType(savedType), false)
+        selectedScanType = savedType
+        panel.memScanType.setText(typeTitle(savedType), false)
+        updateInputType(savedType)
 
-        // Re-render the hint as the type changes and persist the pick immediately.
-        panel.memScanType.doAfterTextChanged {
+        panel.memScanType.setOnItemClickListener { _, _, position, _ ->
+            val item = typeAdapter.getItem(position) ?: return@setOnItemClickListener
+            selectedScanType = item.type
+            viewModel.selectedTypeId = item.type.id
+            updateInputType(item.type)
             updateValueHint()
-            viewModel.selectedTypeId = currentType().id
+        }
+
+        panel.memScanType.doAfterTextChanged {
+            val label = panel.memScanType.text.toString()
+            selectedTypes.firstOrNull { typeTitle(it) == label }?.let { matched ->
+                if (selectedScanType != matched) {
+                    selectedScanType = matched
+                    viewModel.selectedTypeId = matched.id
+                    updateInputType(matched)
+                    updateValueHint()
+                }
+            }
         }
 
         panel.memScanFirst.setOnClickListener { startFirstScan() }
@@ -168,8 +309,25 @@ class MemoryEditorFragment : DialogFragment() {
         panel.memScanReset.setOnClickListener { viewModel.clearResults() }
     }
 
+    private fun updateInputType(type: MemValueType) {
+        val input = scanBinding.memScanValue
+        val targetInputType = when {
+            type.isPattern -> InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+            type == MemValueType.STRING -> InputType.TYPE_CLASS_TEXT
+            type.isFloat -> InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL or InputType.TYPE_NUMBER_FLAG_SIGNED
+            type in listOf(MemValueType.S8, MemValueType.S16, MemValueType.S32, MemValueType.S64) ->
+                InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_SIGNED
+            else -> InputType.TYPE_CLASS_NUMBER
+        }
+        if (input.inputType != targetInputType) {
+            val selection = input.selectionStart to input.selectionEnd
+            input.inputType = targetInputType
+            input.setSelection(selection.first.coerceIn(0, input.text?.length ?: 0))
+        }
+    }
+
     private fun updateValueHint() {
-        val panel = binding.memoryEditorScanPanel
+        val panel = scanBinding
         val type = currentType()
         panel.memScanValueLayout.hint = when {
             refineModeActive -> requireContext().getString(R.string.mem_scan_new_value)
@@ -181,23 +339,21 @@ class MemoryEditorFragment : DialogFragment() {
 
     private fun setRefineMode(active: Boolean) {
         refineModeActive = active
-        val panel = binding.memoryEditorScanPanel
+        val panel = scanBinding
         panel.memScanFirst.setVisible(visible = !active, gone = true)
-        panel.memScanRefineRow.setVisible(visible = active, gone = true)
+        panel.memScanNext.setVisible(visible = active, gone = true)
+        panel.memScanReset.setVisible(visible = active, gone = true)
         updateValueHint()
     }
 
     private fun setupTableControls() {
-        val panel = binding.memoryEditorTablePanel
+        val panel = tableBinding
         panel.memTableClear.setOnClickListener { confirmClearTable() }
     }
 
     private fun currentRegion(): MemRegion? = scanRegion
 
-    private fun currentType(): MemValueType {
-        val label = binding.memoryEditorScanPanel.memScanType.text.toString()
-        return selectedTypes.firstOrNull { describeType(it) == label } ?: MemValueType.U32
-    }
+    private fun currentType(): MemValueType = selectedScanType
 
     private fun startFirstScan() {
         val region = currentRegion()
@@ -207,17 +363,17 @@ class MemoryEditorFragment : DialogFragment() {
         }
 
         val type = currentType()
-        val text = binding.memoryEditorScanPanel.memScanValue.text?.toString().orEmpty()
+        val text = scanBinding.memScanValue.text?.toString().orEmpty()
         val value = if (type.isPattern) 0L else viewModel.parseInput(type, text) ?: run {
-            binding.memoryEditorScanPanel.memScanValueLayout.error =
+            scanBinding.memScanValueLayout.error =
                 getString(R.string.mem_invalid_value)
             return
         }
-        binding.memoryEditorScanPanel.memScanValueLayout.error = null
+        scanBinding.memScanValueLayout.error = null
 
         val pattern = if (type.isPattern) text.replace(" ", "") else ""
         if (type.isPattern && (pattern.length % 2 != 0 || pattern.isEmpty())) {
-            binding.memoryEditorScanPanel.memScanValueLayout.error =
+            scanBinding.memScanValueLayout.error =
                 getString(R.string.mem_invalid_value)
             return
         }
@@ -228,13 +384,13 @@ class MemoryEditorFragment : DialogFragment() {
     private fun refineScan() {
         val type = currentType()
 
-        val text = binding.memoryEditorScanPanel.memScanValue.text?.toString().orEmpty()
+        val text = scanBinding.memScanValue.text?.toString().orEmpty()
         val value = viewModel.parseInput(type, text) ?: run {
-            binding.memoryEditorScanPanel.memScanValueLayout.error =
+            scanBinding.memScanValueLayout.error =
                 getString(R.string.mem_invalid_value)
             return
         }
-        binding.memoryEditorScanPanel.memScanValueLayout.error = null
+        scanBinding.memScanValueLayout.error = null
         viewModel.refine(type, MemCompare.EXACT, value, FLOAT_EPSILON)
     }
 
@@ -356,7 +512,7 @@ class MemoryEditorFragment : DialogFragment() {
     }
 
     private fun renderStatus(status: MemoryEditorViewModel.ScanStatus) {
-        val panel = binding.memoryEditorScanPanel
+        val panel = scanBinding
         val running = status is MemoryEditorViewModel.ScanStatus.Running
         panel.memScanProgress.setVisible(running)
 
@@ -392,29 +548,48 @@ class MemoryEditorFragment : DialogFragment() {
     private fun onFreezeEntriesChanged(entries: List<FreezeEntry>) {
         freezeAdapter.submit(entries)
         // Count both numbers: “N frozen addresses” lied whenever some rows were unticked.
-        binding.memoryEditorTablePanel.memTableStatus.text = if (entries.isEmpty()) {
+        tableBinding.memTableStatus.text = if (entries.isEmpty()) {
             getString(R.string.mem_freeze_none)
         } else {
             getString(R.string.mem_freeze_count, entries.size, entries.count { it.enabled })
         }
     }
 
-    private fun describeType(type: MemValueType): String = getString(
+    private fun typeTitle(type: MemValueType): String = getString(
         when (type) {
-            MemValueType.U32 -> R.string.mem_type_u32
-            MemValueType.F32 -> R.string.mem_type_f32
-            MemValueType.U16 -> R.string.mem_type_u16
-            MemValueType.U8 -> R.string.mem_type_u8
-            MemValueType.U64 -> R.string.mem_type_u64
-            MemValueType.S32 -> R.string.mem_type_s32
-            MemValueType.F64 -> R.string.mem_type_f64
-            MemValueType.S16 -> R.string.mem_type_s16
-            MemValueType.S8 -> R.string.mem_type_s8
-            MemValueType.S64 -> R.string.mem_type_s64
-            MemValueType.STRING -> R.string.mem_type_str
-            MemValueType.AOB -> R.string.mem_type_aob
+            MemValueType.U32 -> R.string.mem_type_u32_title
+            MemValueType.F32 -> R.string.mem_type_f32_title
+            MemValueType.U16 -> R.string.mem_type_u16_title
+            MemValueType.U8 -> R.string.mem_type_u8_title
+            MemValueType.U64 -> R.string.mem_type_u64_title
+            MemValueType.S32 -> R.string.mem_type_s32_title
+            MemValueType.F64 -> R.string.mem_type_f64_title
+            MemValueType.S16 -> R.string.mem_type_s16_title
+            MemValueType.S8 -> R.string.mem_type_s8_title
+            MemValueType.S64 -> R.string.mem_type_s64_title
+            MemValueType.STRING -> R.string.mem_type_str_title
+            MemValueType.AOB -> R.string.mem_type_aob_title
         }
     )
+
+    private fun typeDesc(type: MemValueType): String = getString(
+        when (type) {
+            MemValueType.U32 -> R.string.mem_type_u32_desc
+            MemValueType.F32 -> R.string.mem_type_f32_desc
+            MemValueType.U16 -> R.string.mem_type_u16_desc
+            MemValueType.U8 -> R.string.mem_type_u8_desc
+            MemValueType.U64 -> R.string.mem_type_u64_desc
+            MemValueType.S32 -> R.string.mem_type_s32_desc
+            MemValueType.F64 -> R.string.mem_type_f64_desc
+            MemValueType.S16 -> R.string.mem_type_s16_desc
+            MemValueType.S8 -> R.string.mem_type_s8_desc
+            MemValueType.S64 -> R.string.mem_type_s64_desc
+            MemValueType.STRING -> R.string.mem_type_str_desc
+            MemValueType.AOB -> R.string.mem_type_aob_desc
+        }
+    )
+
+    private fun describeType(type: MemValueType): String = "${typeTitle(type)} — ${typeDesc(type)}"
 
     private fun formatValue(type: MemValueType, bits: Long): String =
         FreezeEntry(0, type, bits, null, type.width, true, "").formatValue(bits)
@@ -422,6 +597,8 @@ class MemoryEditorFragment : DialogFragment() {
     override fun onDestroyView() {
         super.onDestroyView()
         _binding = null
+        _scanBinding = null
+        _tableBinding = null
     }
 
     override fun onDestroy() {

@@ -4,44 +4,14 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
     android:background="@drawable/mem_editor_window_bg"
-    android:clipToOutline="true">
+    android:clipToOutline="true"
+    android:orientation="vertical">
 
-    <com.google.android.material.tabs.TabLayout
-        android:id="@+id/memory_editor_tabs"
+    <androidx.viewpager2.widget.ViewPager2
+        android:id="@+id/memory_editor_pager"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:minHeight="0dp"
-        app:tabMode="fixed">
-
-        <com.google.android.material.tabs.TabItem
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/mem_tab_scan" />
-
-        <com.google.android.material.tabs.TabItem
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/mem_tab_table" />
-
-    </com.google.android.material.tabs.TabLayout>
-
-    <FrameLayout
-        android:id="@+id/memory_editor_content"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1">
-
-        <include
-            android:id="@+id/memory_editor_scan_panel"
-            layout="@layout/view_mem_scan" />
-
-        <include
-            android:id="@+id/memory_editor_table_panel"
-            layout="@layout/view_mem_table"
-            android:visibility="gone" />
-
-    </FrameLayout>
+        android:layout_height="match_parent"
+        android:orientation="horizontal" />
 
 </LinearLayout>
