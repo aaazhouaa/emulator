@@ -105,10 +105,45 @@ public:
 
     /**
      * Returns system information about the drawing area.
+     * The render surface comes from GetRenderSurface(), so frontends whose surface can go away at
+     * runtime report its current state instead of a value cached in window_info.
      */
-    const WindowSystemInfo& GetWindowInfo() const {
-        return window_info;
+    WindowSystemInfo GetWindowInfo() const {
+        WindowSystemInfo info = window_info;
+        info.render_surface = GetRenderSurface();
+        return info;
     }
+
+    /**
+     * Returns the native render surface, or nullptr when the frontend currently has none.
+     * Frontends that can lose their surface at runtime override this, so a read from the video
+     * thread cannot observe a handle the UI thread already released.
+     */
+    virtual void* GetRenderSurface() const {
+        return window_info.render_surface;
+    }
+
+    /**
+     * Same as GetWindowInfo(), but holds a reference on the render surface so it stays usable even
+     * if the frontend drops its own right after. Every call must be paired with
+     * ReleaseRenderSurface() on the returned render_surface.
+     */
+    WindowSystemInfo AcquireWindowInfo() const {
+        WindowSystemInfo info = window_info;
+        info.render_surface = AcquireRenderSurface();
+        return info;
+    }
+
+    /**
+     * Returns the render surface with a reference held for the caller. The default implementation
+     * assumes the surface outlives its use, which holds for frontends that never replace it.
+     */
+    virtual void* AcquireRenderSurface() const {
+        return GetRenderSurface();
+    }
+
+    /// Releases a reference obtained from AcquireRenderSurface().
+    virtual void ReleaseRenderSurface(void*) const {}
 
     /**
      * Gets the framebuffer layout (width, height, and screen regions)

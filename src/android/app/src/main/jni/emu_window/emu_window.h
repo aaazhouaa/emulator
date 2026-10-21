@@ -4,6 +4,7 @@
 #pragma once
 
 #include <memory>
+#include <mutex>
 #include <span>
 
 #include "core/frontend/emu_window.h"
@@ -30,12 +31,19 @@ private:
 class EmuWindow_Android final : public Core::Frontend::EmuWindow {
 
 public:
+    /// Takes a reference to the given surface. The caller keeps ownership of its own reference.
     EmuWindow_Android(ANativeWindow* surface,
                       std::shared_ptr<Common::DynamicLibrary> driver_library);
 
-    ~EmuWindow_Android() = default;
+    ~EmuWindow_Android() override;
 
+    /// Takes a reference to the given surface, replacing (and releasing) the current one.
     void OnSurfaceChanged(ANativeWindow* surface);
+    /// Drops the current surface, as the frontend destroyed it.
+    void OnSurfaceCleared();
+    void* GetRenderSurface() const override;
+    void* AcquireRenderSurface() const override;
+    void ReleaseRenderSurface(void* surface) const override;
     void OnFrameDisplayed() override;
 
     void OnTouchPressed(int id, float x, float y);
@@ -52,6 +60,12 @@ public:
 private:
     float m_window_width{};
     float m_window_height{};
+
+    // The UI thread replaces or drops the surface while the video thread reads it. The window owns
+    // a reference to whatever it holds, so a handle handed out by AcquireRenderSurface() stays
+    // valid even if the frontend destroys its Surface right after.
+    mutable std::mutex m_surface_mutex;
+    ANativeWindow* m_surface{};
 
     std::shared_ptr<Common::DynamicLibrary> m_driver_library;
 

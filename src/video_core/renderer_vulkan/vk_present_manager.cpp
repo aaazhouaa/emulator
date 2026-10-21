@@ -3,12 +3,14 @@
 
 #include <array>
 
+#include "common/scope_exit.h"
 #include "common/settings.h"
 #include "common/thread.h"
 #include "core/frontend/emu_window.h"
 #include "video_core/renderer_vulkan/vk_present_manager.h"
 #include "video_core/renderer_vulkan/vk_scheduler.h"
 #include "video_core/renderer_vulkan/vk_swapchain.h"
+#include "video_core/vulkan_common/vk_enum_string_helper.h"
 #include "video_core/vulkan_common/vulkan_device.h"
 #include "video_core/vulkan_common/vulkan_surface.h"
 
@@ -101,6 +103,7 @@ PresentManager::PresentManager(const vk::Instance& instance_,
       surface{surface_}, blit_supported{CanBlitToSwapchain(device.GetPhysical(),
                                                            swapchain.GetImageViewFormat())},
       use_present_thread{Settings::values.async_presentation.GetValue()} {
+    presented_surface = render_window.GetWindowInfo().render_surface;
     SetImageCount();
     UpdateFramePipelineLimit();
 
@@ -153,6 +156,7 @@ Frame* PresentManager::GetRenderFrame() {
     ++frames_in_flight;
 
     // Wait for the presentation to be finished so all frame resources are free
+    frame->submitted = false;
     frame->present_done.Wait();
     frame->present_done.Reset();
 
@@ -162,7 +166,7 @@ Frame* PresentManager::GetRenderFrame() {
 void PresentManager::Present(Frame* frame) {
     if (!use_present_thread) {
         scheduler.WaitWorker();
-        CopyToSwapchain(frame);
+        PresentFrame(frame);
         ReleaseRenderFrame(frame);
         return;
     }
@@ -291,7 +295,7 @@ void PresentManager::PresentThread(std::stop_token token) {
         // lock in WaitPresent is guaranteed to occur after here.
         std::exchange(lock, std::unique_lock{swapchain_mutex});
 
-        CopyToSwapchain(frame);
+        PresentFrame(frame);
 
         ReleaseRenderFrame(frame);
     }
@@ -330,15 +334,95 @@ void PresentManager::ReleaseRenderFrame(Frame* frame) {
     free_cv.notify_one();
 }
 
-void PresentManager::CopyToSwapchain(Frame* frame) {
-    bool requires_recreation = false;
+void PresentManager::PresentFrame(Frame* frame) noexcept {
+    try {
+        CopyToSwapchain(frame);
+    } catch (const std::exception& exception) {
+        // Presenting runs on a std::jthread (async presentation) or on the GPU thread. An
+        // exception escaping either of them reaches std::terminate and kills the process, which
+        // is what a destroyed Android surface used to do.
+        LOG_ERROR(Render_Vulkan, "Failed to present frame: {}", exception.what());
+        DiscardFrame(frame);
+    }
+}
 
-    while (true) {
+void PresentManager::DiscardFrame(Frame* frame) noexcept {
+    if (frame->submitted) {
+        // The frame was already on the queue waiting for render_ready, so that signal has been
+        // consumed. Waiting on it again would never complete.
+        LOG_DEBUG(Render_Vulkan, "Dropped frame {} after its submission", frame - frames.data());
+        return;
+    }
+
+    // GetRenderFrame() waits on present_done and the next present waits on render_ready, which the
+    // renderer already signaled. Retire both with an empty submission, otherwise the frame is never
+    // reusable.
+    const VkSemaphore render_semaphore{*frame->render_ready};
+    static constexpr VkPipelineStageFlags wait_stage{VK_PIPELINE_STAGE_ALL_COMMANDS_BIT};
+    const VkSubmitInfo submit_info{
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .pNext = nullptr,
+        .waitSemaphoreCount = 1U,
+        .pWaitSemaphores = &render_semaphore,
+        .pWaitDstStageMask = &wait_stage,
+        .commandBufferCount = 0,
+        .pCommandBuffers = nullptr,
+        .signalSemaphoreCount = 0U,
+        .pSignalSemaphores = nullptr,
+    };
+
+    std::scoped_lock submit_lock{scheduler.submit_mutex};
+    const VkResult result = device.GetGraphicsQueue().Submit(submit_info, *frame->present_done);
+    if (result == VK_ERROR_DEVICE_LOST) {
+        device.ReportLoss();
+    }
+    if (result != VK_SUCCESS) {
+        // Without a signaled fence this frame can never be reused, but the device is failing
+        // anyway.
+        LOG_ERROR(Render_Vulkan, "Failed to retire a dropped frame: {}", string_VkResult(result));
+    }
+}
+
+void PresentManager::CopyToSwapchain(Frame* frame) {
+    // A surface that is gone for good keeps failing, so retrying has to be bounded. Without a
+    // bound this loop spins on the present thread and the frame is never released.
+    for (u32 attempt = 0; attempt < MAX_SURFACE_RECREATION_ATTEMPTS; ++attempt) {
+        // Holds a reference on the native window for as long as the driver needs it, so the
+        // frontend cannot destroy the surface midway through creating or presenting to it.
+        const auto window_info = render_window.AcquireWindowInfo();
+        SCOPE_EXIT {
+            render_window.ReleaseRenderSurface(window_info.render_surface);
+        };
+        void* const window_surface = window_info.render_surface;
+
+        if (window_surface == nullptr) {
+            // The frontend destroyed its surface. Rebuilding it needs a live window handle,
+            // without one the driver fails with VK_ERROR_INITIALIZATION_FAILED. Forget which
+            // surface is in use too, so the next frame rebuilds the surface and the swapchain
+            // instead of presenting to the destroyed one.
+            LOG_DEBUG(Render_Vulkan, "Dropping frame, no surface to present to");
+            presented_surface = nullptr;
+            DiscardFrame(frame);
+            return;
+        }
+
+        // The swapchain is bound to the native window it was created from, so a different window
+        // (or a replacement for a destroyed one) needs a new surface and swapchain.
+        const bool requires_recreation =
+            surface_needs_recreation || window_surface != presented_surface;
+
         try {
             // Recreate surface and swapchain if needed.
             if (requires_recreation) {
-                surface = CreateSurface(instance, render_window.GetWindowInfo());
+                // The old surface has to outlive its swapchain: it is destroyed when this block
+                // ends, which is after RecreateSwapchain() replaced the swapchain. Creating the new
+                // surface first also means a failure leaves the old one intact.
+                vk::SurfaceKHR new_surface = CreateSurface(instance, window_info);
+                const vk::SurfaceKHR old_surface = std::move(surface);
+                surface = std::move(new_surface);
                 RecreateSwapchain(frame);
+                presented_surface = window_surface;
+                surface_needs_recreation = false;
             }
 
             // Draw to swapchain.
@@ -348,9 +432,21 @@ void PresentManager::CopyToSwapchain(Frame* frame) {
                 throw;
             }
 
-            requires_recreation = true;
+            surface_needs_recreation = true;
+
+            if (frame->submitted) {
+                // The image copy already ran and consumed render_ready. Submitting again would wait
+                // on a semaphore nobody signals any more, which hangs the queue; the fence of the
+                // submit that did run will release this frame instead.
+                LOG_DEBUG(Render_Vulkan, "Surface lost after submit, dropping this frame");
+                return;
+            }
         }
     }
+
+    LOG_ERROR(Render_Vulkan, "Giving up on this frame, the surface could not be recreated");
+    presented_surface = nullptr;
+    DiscardFrame(frame);
 }
 
 void PresentManager::CopyToSwapchainImpl(Frame* frame) {
@@ -501,6 +597,7 @@ void PresentManager::CopyToSwapchainImpl(Frame* frame) {
         switch (const VkResult result =
                     device.GetGraphicsQueue().Submit(submit_info, *frame->present_done)) {
         case VK_SUCCESS:
+            frame->submitted = true;
             break;
         case VK_ERROR_DEVICE_LOST:
             device.ReportLoss();

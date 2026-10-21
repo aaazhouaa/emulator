@@ -31,6 +31,9 @@ struct Frame {
     vk::CommandBuffer cmdbuf;
     vk::Semaphore render_ready;
     vk::Fence present_done;
+    /// True once the submit that signals present_done has been recorded for this frame. A frame
+    /// that is dropped after that submit does not need to be retired again.
+    bool submitted{};
 };
 
 class PresentManager {
@@ -55,6 +58,14 @@ public:
 
 private:
     void PresentThread(std::stop_token token);
+
+    /// Copies a frame to the swapchain, swallowing failures so they cannot terminate the
+    /// presenting thread.
+    void PresentFrame(Frame* frame) noexcept;
+
+    /// Retires the semaphores and fence of a frame that will not be presented, so the frame can be
+    /// reused by a later GetRenderFrame().
+    void DiscardFrame(Frame* frame) noexcept;
 
     void CopyToSwapchain(Frame* frame);
 
@@ -88,11 +99,19 @@ private:
     std::jthread present_thread;
     bool blit_supported;
     bool use_present_thread;
+    /// Set when the driver reported the surface as lost, so the next attempt rebuilds it.
+    bool surface_needs_recreation{};
+    /// Native window the current surface and swapchain were created from. A swapchain is bound to
+    /// the window it was created for, so a different handle means both have to be rebuilt. Both the
+    /// present thread and the GPU thread call into the presentation path, but only one of them is
+    /// ever active at a time, so no synchronization is needed.
+    void* presented_surface{};
     std::size_t image_count{};
     std::size_t frames_in_flight{};
     bool limit_mailbox_frames{};
 
     static constexpr std::size_t MAX_MAILBOX_FRAMES_IN_FLIGHT = 2;
+    static constexpr u32 MAX_SURFACE_RECREATION_ATTEMPTS = 3;
 };
 
 } // namespace Vulkan

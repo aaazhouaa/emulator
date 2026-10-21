@@ -345,6 +345,11 @@ void EmulationSession::SetNativeWindow(ANativeWindow* native_window) {
         }
         return;
     }
+    if (native_window == nullptr && m_window != nullptr) {
+        // Drop the window's copy of the handle before the reference is released, otherwise the
+        // present thread could rebuild its surface from a dangling ANativeWindow.
+        m_window->OnSurfaceCleared();
+    }
     if (m_native_window != nullptr) {
         ANativeWindow_release(m_native_window);
     }
@@ -423,9 +428,11 @@ Core::PerfStatsResults EmulationSession::PerfStats() {
 
 void EmulationSession::SurfaceChanged() {
     std::scoped_lock lock(m_window_mutex);
-    if (!IsRunning() || m_window == nullptr || m_native_window == nullptr) {
+    if (!IsRunning() || m_window == nullptr) {
         return;
     }
+    // Called with a null native window on surface destruction too, so the renderer learns about the
+    // loss right away instead of finding out through a dangling handle in the present thread.
     m_window->OnSurfaceChanged(m_native_window);
 }
 
