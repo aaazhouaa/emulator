@@ -16,9 +16,38 @@ import org.citron.citron_emu.model.MinimalDocumentFile
 
 object GameHelper {
     private const val KEY_OLD_GAME_PATH = "game_path"
+    private const val KEY_GAMES_STALE = "games_stale"
     const val KEY_GAMES = "Games"
 
     private lateinit var preferences: SharedPreferences
+
+    /**
+     * Marks the cached game list as stale.
+     *
+     * Titles come out of each game's NACP, and which entry is read depends on the emulated
+     * language. Changing a setting in the settings screen therefore leaves the titles already
+     * scanned in memory and in [KEY_GAMES] wrong, and nothing in that screen knows which of its
+     * settings a title depends on. The game list rescans once when it is shown again.
+     */
+    fun markGamesStale() {
+        PreferenceManager.getDefaultSharedPreferences(CitronApplication.appContext)
+            .edit()
+            .putBoolean(KEY_GAMES_STALE, true)
+            .apply()
+    }
+
+    /**
+     * Returns true once after [markGamesStale], so a change triggers exactly one rescan.
+     */
+    fun consumeGamesStale(): Boolean {
+        val preferences =
+            PreferenceManager.getDefaultSharedPreferences(CitronApplication.appContext)
+        if (!preferences.getBoolean(KEY_GAMES_STALE, false)) {
+            return false
+        }
+        preferences.edit().putBoolean(KEY_GAMES_STALE, false).apply()
+        return true
+    }
 
     fun getGames(): List<Game> {
         val games = mutableListOf<Game>()

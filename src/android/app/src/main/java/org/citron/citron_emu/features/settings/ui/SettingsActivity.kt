@@ -120,6 +120,10 @@ class SettingsActivity : AppCompatActivity() {
             NativeLibrary.applySettings()
             if (args.game == null) {
                 NativeConfig.saveGlobalConfig()
+                // Game titles and icons come from each NACP and depend on settings changed here.
+                // The game list cannot tell which values it was built from, so have it rescan the
+                // next time it is shown. Per-game configs do not affect the home list.
+                GameHelper.markGamesStale()
             } else if (NativeConfig.isPerGameConfigLoaded()) {
                 NativeLibrary.logSettings()
                 NativeConfig.savePerGameConfig()

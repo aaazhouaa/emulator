@@ -89,9 +89,14 @@ class GamesViewModel : ViewModel() {
         reloading.set(true)
         _isReloading.value = true
 
+        // The cached list is only worth showing while it is still valid. A setting changed since
+        // it was written makes every title in it suspect, and showing it first would make the
+        // rescan look like a refresh that did nothing.
+        val useCachedList = firstStartup && !GameHelper.consumeGamesStale()
+
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
-                if (firstStartup) {
+                if (useCachedList) {
                     // Retrieve list of cached games
                     val storedGames =
                         PreferenceManager.getDefaultSharedPreferences(CitronApplication.appContext)

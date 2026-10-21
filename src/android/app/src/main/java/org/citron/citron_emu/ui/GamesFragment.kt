@@ -23,6 +23,7 @@ import org.citron.citron_emu.databinding.FragmentGamesBinding
 import org.citron.citron_emu.layout.AutofitGridLayoutManager
 import org.citron.citron_emu.model.GamesViewModel
 import org.citron.citron_emu.model.HomeViewModel
+import org.citron.citron_emu.utils.GameHelper
 import org.citron.citron_emu.utils.ViewUtils.setVisible
 import org.citron.citron_emu.utils.ViewUtils.updateMargins
 import org.citron.citron_emu.utils.collect
@@ -111,6 +112,20 @@ class GamesFragment : Fragment() {
     override fun onDestroyView() {
         super.onDestroyView()
         _binding = null
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (_binding == null) {
+            return
+        }
+        // Titles and icons are read from each game's NACP, which depends on the emulated language
+        // and other system settings. Coming back from the settings screen is the point where those
+        // can have changed, and the list has no other way to learn about it. A rescan is skipped
+        // unless something was actually changed, so returning here normally costs nothing.
+        if (GameHelper.consumeGamesStale()) {
+            gamesViewModel.reloadGames(false)
+        }
     }
 
     private fun layoutManagerForMode(mode: Int): RecyclerView.LayoutManager =
