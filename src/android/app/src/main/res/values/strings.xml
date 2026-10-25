@@ -735,7 +735,6 @@
     <string name="mem_scan_done">%1$d result(s)</string>
     <string name="mem_scan_cancelled">Scan cancelled, %1$d result(s)</string>
     <string name="mem_scan_no_results">No addresses matched.</string>
-    <string name="mem_scan_truncated">Too many results — try a larger value type or a smaller region.</string>
     <string name="mem_scan_add_to_table">Add to address table</string>
     <string name="mem_scan_loading">Loading…</string>
     <string name="mem_freeze_untitled">Unnamed address</string>
@@ -750,16 +749,12 @@
     <string name="mem_freeze_value_title">Value to set</string>
     <string name="mem_freeze_description">Description</string>
     <string name="mem_table_clear">Clear</string>
-    <string name="mem_freeze_pattern_unsupported">A byte-pattern address cannot be added to the table.</string>
     <string name="mem_freeze_add_title">Edit value</string>
-    <string name="mem_freeze_added">Added to the address table</string>
-    <string name="mem_freeze_set_failed">The address table rejected the change</string>
     <string name="mem_freeze_clear_confirm">Remove every address from the table?</string>
     <string name="mem_confirm">OK</string>
     <string name="mem_scan_value_pattern">Bytes, hex (?? for wildcard)</string>
     <string name="mem_scan_value_float">Floating point value</string>
     <string name="mem_invalid_value">Enter a valid value for the selected type.</string>
-    <string name="mem_cannot_start_scan">No game is running.</string>
     <string name="mem_scan_failed_stopped">Scanner stopped responding</string>
     <string name="mem_scan_failed_no_process">No game is running</string>
     <string name="mem_scan_failed_invalid">Invalid scan parameters</string>

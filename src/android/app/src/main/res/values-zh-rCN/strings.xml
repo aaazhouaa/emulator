@@ -916,7 +916,6 @@
     <string name="mem_scan_done">%1$d 个结果</string>
     <string name="mem_scan_cancelled">扫描已取消，%1$d 个结果</string>
     <string name="mem_scan_no_results">没有匹配的地址。</string>
-    <string name="mem_scan_truncated">结果太多——请换更大的数值类型或更小的内存区域。</string>
     <string name="mem_scan_add_to_table">添加到地址表</string>
     <string name="mem_scan_loading">加载中…</string>
     <string name="mem_freeze_untitled">未命名地址</string>
@@ -931,16 +930,12 @@
     <string name="mem_freeze_value_title">要修改的数值</string>
     <string name="mem_freeze_description">描述</string>
     <string name="mem_table_clear">清空</string>
-    <string name="mem_freeze_set_failed">地址表未能应用该修改</string>
-    <string name="mem_freeze_pattern_unsupported">字节模式地址无法加入地址表。</string>
     <string name="mem_freeze_add_title">修改数值</string>
-    <string name="mem_freeze_added">已添加到地址表</string>
     <string name="mem_freeze_clear_confirm">移除地址表中的全部地址？</string>
     <string name="mem_confirm">确定</string>
     <string name="mem_scan_value_pattern">字节，十六进制（?? 表示通配）</string>
     <string name="mem_scan_value_float">浮点数</string>
     <string name="mem_invalid_value">请输入所选类型对应的有效数值。</string>
-    <string name="mem_cannot_start_scan">当前没有运行中的游戏。</string>
     <string name="mem_scan_failed_stopped">扫描进程无响应</string>
     <string name="mem_scan_failed_no_process">没有运行中的游戏</string>
     <string name="mem_scan_failed_invalid">扫描参数无效</string>

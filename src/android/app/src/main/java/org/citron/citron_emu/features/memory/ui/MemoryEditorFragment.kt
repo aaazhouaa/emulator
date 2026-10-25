@@ -15,7 +15,6 @@ import android.view.WindowManager
 import android.widget.ArrayAdapter
 import android.widget.Filter
 import android.widget.TextView
-import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.core.widget.doAfterTextChanged
 import androidx.fragment.app.DialogFragment
@@ -356,11 +355,7 @@ class MemoryEditorFragment : DialogFragment() {
     private fun currentType(): MemValueType = selectedScanType
 
     private fun startFirstScan() {
-        val region = currentRegion()
-        if (region == null) {
-            viewModel.notify(getString(R.string.mem_cannot_start_scan))
-            return
-        }
+        val region = currentRegion() ?: return
 
         val type = currentType()
         val text = scanBinding.memScanValue.text?.toString().orEmpty()
@@ -396,10 +391,7 @@ class MemoryEditorFragment : DialogFragment() {
 
     private fun promptAddToTable(address: Long) {
         val type = currentType()
-        if (type.isPattern) {
-            viewModel.notify(getString(R.string.mem_freeze_pattern_unsupported))
-            return
-        }
+        if (type.isPattern) return
         // Seed the value with whatever is in memory right now; the user can change it next.
         val current = viewModel.readValue(address, type)
         showValueDialog(
@@ -409,9 +401,6 @@ class MemoryEditorFragment : DialogFragment() {
             initialDescription = "",
             showDescription = true
         ) { value, description ->
-            // The view model reports the outcome itself: it knows whether the table actually made
-            // it to disk, and it clears the row from the scan results. A toast fired here would
-            // claim success before that answer arrived.
             viewModel.freeze(address, type, value, description)
         }
     }
@@ -494,14 +483,6 @@ class MemoryEditorFragment : DialogFragment() {
                     }
                 }
                 launch { viewModel.freezeEntries.collect { onFreezeEntriesChanged(it) } }
-                launch {
-                    viewModel.message.collect { message ->
-                        if (!message.isNullOrEmpty()) {
-                            Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show()
-                            viewModel.consumeMessage()
-                        }
-                    }
-                }
             }
         }
     }

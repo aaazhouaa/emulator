@@ -69,21 +69,10 @@ class MemoryEditorViewModel(application: Application) : AndroidViewModel(applica
     private val _freezeEntries = MutableStateFlow<List<FreezeEntry>>(emptyList())
     val freezeEntries = _freezeEntries.asStateFlow()
 
-    private val _message = MutableStateFlow<String?>(null)
-    val message = _message.asStateFlow()
-
     private var pollJob: Job? = null
 
     /** Last value type picked by the user, so reopening the editor keeps it. */
     var selectedTypeId: String? = null
-
-    fun consumeMessage() {
-        _message.value = null
-    }
-
-    fun notify(message: String) {
-        _message.value = message
-    }
 
     /** Reads the live value at an address so the add-to-table dialog can be pre-filled. */
     fun readValue(address: Long, type: MemValueType): Long? {
@@ -149,11 +138,8 @@ class MemoryEditorViewModel(application: Application) : AndroidViewModel(applica
             }
         }.toString()
 
-        _message.value = "首次扫描 region=${region.name} base=0x${region.base.toString(16)} size=0x${region.size.toString(16)} type=${type.id}"
-
         viewModelScope.launch {
             val result = withContext(Dispatchers.IO) { NativeLibrary.memScanStart(params) }
-            _message.value = "首次扫描 start 返回码=$result"
             if (result != NativeLibrary.MemScanResult.SUCCESS) {
                 _status.value = ScanStatus.Failed(scanErrorMessage(result))
                 return@launch
@@ -174,10 +160,7 @@ class MemoryEditorViewModel(application: Application) : AndroidViewModel(applica
 
         android.util.Log.d("MemoryEditor", "refine params=$params")
         viewModelScope.launch {
-            val countBefore = withContext(Dispatchers.IO) { NativeLibrary.memScanCount() }
             val result = withContext(Dispatchers.IO) { NativeLibrary.memScanRefine(params) }
-            val countAfter = withContext(Dispatchers.IO) { NativeLibrary.memScanCount() }
-            _message.value = "refine 码=$result 前=$countBefore 后=$countAfter 值=0x${value.toString(16)}"
             if (result != NativeLibrary.MemScanResult.SUCCESS) {
                 return@launch
             }
@@ -236,13 +219,6 @@ class MemoryEditorViewModel(application: Application) : AndroidViewModel(applica
         val count = withContext(Dispatchers.IO) { NativeLibrary.memScanCount() }
         publishResultWindow(count)
         _status.value = ScanStatus.Done(count)
-
-        // Tell the user when the scan hit the cap: the candidate list is incomplete and
-        // refining it will likely end up empty, so the honest next step is a narrower scan.
-        val truncated = withContext(Dispatchers.IO) { NativeLibrary.memScanIsTruncated() }
-        if (truncated) {
-            _message.value = context.getString(R.string.mem_scan_truncated)
-        }
     }
 
     /**
@@ -260,14 +236,13 @@ class MemoryEditorViewModel(application: Application) : AndroidViewModel(applica
                 // Add the entry without enabling the freeze: it writes once, then stays
                 // parked until the user toggles the checkbox. Passing true would start the
                 // per-frame freezer and make it behave like an always-on freeze.
-                val applied = NativeLibrary.memFreezeSet(address, type.id, value, description, false)
+                NativeLibrary.memFreezeSet(address, type.id, value, description, false)
                 // Drop the row from the scan results: it now lives in the address table, and
                 // leaving it behind let the user add the same address over and over.
                 val remaining = NativeLibrary.memScanEraseResult(address)
-                applied to (remaining to FreezeEntry.fromJson(NativeLibrary.memFreezeList()))
+                remaining to FreezeEntry.fromJson(NativeLibrary.memFreezeList())
             }
-            val (applied, rest) = result
-            val (remaining, entries) = rest
+            val (remaining, entries) = result
             _freezeEntries.value = entries
             // Only touch the scan side when a scan is actually on screen; adding an address while
             // the list is idle must not replace the "enter a value" prompt with a result count.
@@ -278,69 +253,50 @@ class MemoryEditorViewModel(application: Application) : AndroidViewModel(applica
                 publishResultWindow(remaining)
                 _status.value = ScanStatus.Done(remaining)
             }
-            _message.value = context.getString(
-                if (applied) R.string.mem_freeze_added else R.string.mem_freeze_set_failed
-            )
-        }
-    }
-
-    /**
-     * Reports a table mutation the freezer refused to apply.
-     *
-     * The address table is session-only, so there is no persistence outcome left to explain; a
-     * failure here means the freezer was unavailable or the type/address was rejected.
-     */
-    private fun reportMutationFailure(applied: Boolean) {
-        if (!applied) {
-            _message.value = context.getString(R.string.mem_freeze_set_failed)
         }
     }
 
     fun removeFreeze(address: Long) {
         viewModelScope.launch {
-            val result = withContext(Dispatchers.IO) {
-                val applied = NativeLibrary.memFreezeRemove(address)
-                applied to FreezeEntry.fromJson(NativeLibrary.memFreezeList())
+            val entries = withContext(Dispatchers.IO) {
+                NativeLibrary.memFreezeRemove(address)
+                FreezeEntry.fromJson(NativeLibrary.memFreezeList())
             }
-            _freezeEntries.value = result.second
-            reportMutationFailure(result.first)
+            _freezeEntries.value = entries
         }
     }
 
     fun toggleFreeze(entry: FreezeEntry, enabled: Boolean) {
         viewModelScope.launch {
-            val result = withContext(Dispatchers.IO) {
-                val applied = NativeLibrary.memFreezeSet(
+            val entries = withContext(Dispatchers.IO) {
+                NativeLibrary.memFreezeSet(
                     entry.address, entry.type.id, entry.value, entry.description, enabled
                 )
-                applied to FreezeEntry.fromJson(NativeLibrary.memFreezeList())
+                FreezeEntry.fromJson(NativeLibrary.memFreezeList())
             }
-            _freezeEntries.value = result.second
-            reportMutationFailure(result.first)
+            _freezeEntries.value = entries
         }
     }
 
     fun updateFreezeValue(entry: FreezeEntry, value: Long, description: String) {
         viewModelScope.launch {
-            val result = withContext(Dispatchers.IO) {
-                val applied = NativeLibrary.memFreezeSet(
+            val entries = withContext(Dispatchers.IO) {
+                NativeLibrary.memFreezeSet(
                     entry.address, entry.type.id, value, description, entry.enabled
                 )
-                applied to FreezeEntry.fromJson(NativeLibrary.memFreezeList())
+                FreezeEntry.fromJson(NativeLibrary.memFreezeList())
             }
-            _freezeEntries.value = result.second
-            reportMutationFailure(result.first)
+            _freezeEntries.value = entries
         }
     }
 
     fun clearFreezes() {
         viewModelScope.launch {
-            val result = withContext(Dispatchers.IO) {
-                val applied = NativeLibrary.memFreezeClear()
-                applied to FreezeEntry.fromJson(NativeLibrary.memFreezeList())
+            val entries = withContext(Dispatchers.IO) {
+                NativeLibrary.memFreezeClear()
+                FreezeEntry.fromJson(NativeLibrary.memFreezeList())
             }
-            _freezeEntries.value = result.second
-            reportMutationFailure(result.first)
+            _freezeEntries.value = entries
         }
     }
 
