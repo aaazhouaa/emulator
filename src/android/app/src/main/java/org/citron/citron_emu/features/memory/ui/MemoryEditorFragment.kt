@@ -330,6 +330,7 @@ class MemoryEditorFragment : DialogFragment() {
         val type = currentType()
         panel.memScanValueLayout.hint = when {
             refineModeActive -> requireContext().getString(R.string.mem_scan_new_value)
+            type == MemValueType.STRING -> requireContext().getString(R.string.mem_scan_value_text)
             type.isPattern -> requireContext().getString(R.string.mem_scan_value_pattern)
             type.isFloat -> requireContext().getString(R.string.mem_scan_value_float)
             else -> requireContext().getString(R.string.mem_scan_value)
@@ -366,8 +367,15 @@ class MemoryEditorFragment : DialogFragment() {
         }
         scanBinding.memScanValueLayout.error = null
 
-        val pattern = if (type.isPattern) text.replace(" ", "") else ""
-        if (type.isPattern && (pattern.length % 2 != 0 || pattern.isEmpty())) {
+        // String searches raw text (encoded as UTF-8 bytes); Aob still takes hex, where
+        // "??" marks a wildcard byte.
+        val pattern = if (type == MemValueType.STRING) {
+            text.toByteArray(Charsets.UTF_8)
+                .joinToString("") { "%02X".format(it.toInt() and 0xFF) }
+        } else {
+            text.replace(" ", "")
+        }
+        if (pattern.isEmpty() || (type == MemValueType.AOB && pattern.length % 2 != 0)) {
             scanBinding.memScanValueLayout.error =
                 getString(R.string.mem_invalid_value)
             return
