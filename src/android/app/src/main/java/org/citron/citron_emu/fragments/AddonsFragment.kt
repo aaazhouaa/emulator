@@ -155,8 +155,7 @@ class AddonsFragment : Fragment() {
                 return@registerForActivityResult
             }
 
-            val isValid = externalAddonDirectory.listFiles()
-                .any { AddonUtil.validAddonDirectories.contains(it.name?.lowercase()) }
+            val isValid = externalAddonDirectory.listFiles().any { it.isAddonDirectory() }
             val errorMessage = MessageDialogFragment.newInstance(
                 requireActivity(),
                 titleId = R.string.invalid_directory,
@@ -178,7 +177,10 @@ class AddonsFragment : Fragment() {
                     val internalAddonDirectory =
                         File(args.game.addonDir + parentDirectoryName)
                     try {
-                        externalAddonDirectory.copyFilesTo(internalAddonDirectory, progressCallback)
+                        externalAddonDirectory.copyAddonContentTo(
+                            internalAddonDirectory,
+                            progressCallback
+                        )
                     } catch (_: Exception) {
                         return@newInstance copyErrorMessage
                     }
@@ -191,6 +193,30 @@ class AddonsFragment : Fragment() {
                 errorMessage.show(parentFragmentManager, MessageDialogFragment.TAG)
             }
         }
+
+    /**
+     * Copies only the addon content (cheats/, exefs/, romfs/, romfslite/) of this directory into
+     * [file], keeping the relative layout so nested mod folders keep working. Everything else in
+     * the selected folder, such as game files, is skipped.
+     */
+    private fun DocumentFile.copyAddonContentTo(
+        file: File,
+        progressCallback: (max: Long, progress: Long) -> Boolean
+    ) {
+        file.mkdirs()
+        listFiles().forEach { child ->
+            val name = child.name ?: return@forEach
+            val destination = File(file, name)
+            if (child.isAddonDirectory()) {
+                child.copyFilesTo(destination, progressCallback)
+            } else if (child.isDirectory) {
+                child.copyAddonContentTo(destination, progressCallback)
+            }
+        }
+    }
+
+    private fun DocumentFile.isAddonDirectory() =
+        isDirectory && name?.lowercase() in AddonUtil.validAddonDirectories
 
     private fun setInsets() =
         ViewCompat.setOnApplyWindowInsetsListener(
