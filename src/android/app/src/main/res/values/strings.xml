@@ -682,6 +682,12 @@
     <string name="emulation_cheats_engine_unavailable">The cheat engine is not available for this game.</string>
     <string name="emulation_cheats_add_failed">The cheat file could not be saved.</string>
     <string name="emulation_cheats_added">Cheat added and enabled.</string>
+    <string name="emulation_cheats_edit">Edit cheat</string>
+    <string name="emulation_cheats_saved">Cheat saved.</string>
+    <string name="emulation_cheats_not_found">The cheat to edit could not be found; its file may have changed.</string>
+    <string name="emulation_cheats_delete">Delete cheat</string>
+    <string name="emulation_cheats_delete_confirm">Delete the cheat "%1$s"? This cannot be undone.</string>
+    <string name="emulation_cheats_deleted">Cheat deleted.</string>
     <string name="emulation_memory_editor">Memory editor</string>
     <string name="mem_tab_scan">Scan</string>
     <string name="mem_tab_table">Address table</string>

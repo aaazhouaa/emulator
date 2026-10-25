@@ -6,6 +6,7 @@ package org.citron.citron_emu.fragments
 
 import android.annotation.SuppressLint
 import android.app.AlertDialog
+import android.app.Dialog
 import android.content.Context
 import android.content.DialogInterface
 import android.content.Intent
@@ -43,6 +44,7 @@ import androidx.navigation.fragment.navArgs
 import androidx.window.layout.FoldingFeature
 import androidx.window.layout.WindowInfoTracker
 import androidx.window.layout.WindowLayoutInfo
+import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.slider.Slider
 import kotlinx.coroutines.Dispatchers
@@ -55,6 +57,8 @@ import org.citron.citron_emu.HomeNavigationDirections
 import org.citron.citron_emu.NativeLibrary
 import org.citron.citron_emu.R
 import org.citron.citron_emu.activities.EmulationActivity
+import org.citron.citron_emu.adapters.CheatAdapter
+import org.citron.citron_emu.databinding.DialogListBinding
 import org.citron.citron_emu.databinding.DialogOverlayAdjustBinding
 import org.citron.citron_emu.databinding.DialogAddCheatBinding
 import org.citron.citron_emu.databinding.FragmentEmulationBinding
@@ -98,6 +102,7 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
     private val driverViewModel: DriverViewModel by activityViewModels()
     private val multiplayerViewModel: MultiplayerViewModel by activityViewModels()
     private val cheatToggleMutex = Mutex()
+    private var cheatListDialog: Dialog? = null
 
     private var isInFoldableLayout = false
 
@@ -1018,6 +1023,7 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
             binding.drawerLayout.close()
 
             if (cheats.isEmpty()) {
+                dismissCheatListDialog()
                 MaterialAlertDialogBuilder(requireContext())
                     .setTitle(R.string.emulation_cheats)
                     .setMessage(R.string.emulation_cheats_empty)
@@ -1029,19 +1035,125 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
                 return@launch
             }
 
-            MaterialAlertDialogBuilder(requireContext())
-                .setTitle(R.string.emulation_cheats)
-                .setMultiChoiceItems(
-                    cheats.map { it.name }.toTypedArray(),
-                    cheats.map { it.enabled }.toBooleanArray()
-                ) { _, which, isChecked ->
-                    setCheatEnabled(cheats[which], isChecked)
+            showCheatListDialog(cheats)
+        }
+    }
+
+    private fun dismissCheatListDialog() {
+        cheatListDialog?.dismiss()
+        cheatListDialog = null
+    }
+
+    private fun showCheatListDialog(cheats: List<Patch>) {
+        dismissCheatListDialog()
+        val listBinding = DialogListBinding.inflate(layoutInflater)
+        listBinding.dialogList.apply {
+            layoutManager = LinearLayoutManager(requireContext())
+            adapter = CheatAdapter(
+                onToggle = { cheat, enabled -> setCheatEnabled(cheat, enabled) },
+                onEdit = { cheat -> showEditCheatDialog(cheat) },
+                onDelete = { cheat -> showDeleteCheatDialog(cheat) }
+            ).also { it.submitList(cheats) }
+        }
+
+        val dialog = MaterialAlertDialogBuilder(requireContext())
+            .setTitle(R.string.emulation_cheats)
+            .setView(listBinding.root)
+            .setNeutralButton(R.string.emulation_cheats_add) { _, _ ->
+                showAddCheatDialog()
+            }
+            .setPositiveButton(R.string.close, null)
+            .create()
+        cheatListDialog = dialog
+        dialog.show()
+    }
+
+    private fun showDeleteCheatDialog(cheat: Patch) {
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle(R.string.emulation_cheats_delete)
+            .setMessage(getString(R.string.emulation_cheats_delete_confirm, cheat.name))
+            .setNegativeButton(android.R.string.cancel, null)
+            .setPositiveButton(R.string.delete) { _, _ ->
+                // The list is rebuilt from scratch once the cheat is gone.
+                dismissCheatListDialog()
+                deleteCheat(cheat)
+            }
+            .show()
+    }
+
+    private fun showEditCheatDialog(cheat: Patch) {
+        val dialogBinding = DialogAddCheatBinding.inflate(layoutInflater)
+        dialogBinding.cheatTitle.setText(cheat.name)
+        val dialog = MaterialAlertDialogBuilder(requireContext())
+            .setTitle(R.string.emulation_cheats_edit)
+            .setView(dialogBinding.root)
+            .setNegativeButton(android.R.string.cancel, null)
+            .setPositiveButton(R.string.save, null)
+            .create()
+
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val title = dialogBinding.cheatTitle.text?.toString()?.trim().orEmpty()
+                val code = dialogBinding.cheatCode.text?.toString()?.trim().orEmpty()
+                dialogBinding.cheatTitleLayout.error = null
+                dialogBinding.cheatCodeLayout.error = null
+                if (title.isEmpty() && !code.contains('[')) {
+                    dialogBinding.cheatTitleLayout.error =
+                        getString(R.string.emulation_cheats_invalid_title)
+                    return@setOnClickListener
                 }
-                .setNeutralButton(R.string.emulation_cheats_add) { _, _ ->
-                    showAddCheatDialog()
+                if (code.isEmpty()) {
+                    dialogBinding.cheatCodeLayout.error =
+                        getString(R.string.emulation_cheats_invalid_code)
+                    return@setOnClickListener
                 }
-                .setPositiveButton(R.string.close, null)
-                .show()
+
+                dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = false
+                dialog.getButton(AlertDialog.BUTTON_NEGATIVE).isEnabled = false
+                editCheat(cheat, title, code) { result ->
+                    if (!dialog.isShowing) {
+                        return@editCheat
+                    }
+                    dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = true
+                    dialog.getButton(AlertDialog.BUTTON_NEGATIVE).isEnabled = true
+                    when (result) {
+                        NativeLibrary.EditCheatResult.SUCCESS -> {
+                            dialog.dismiss()
+                            Toast.makeText(
+                                requireContext(),
+                                R.string.emulation_cheats_saved,
+                                Toast.LENGTH_SHORT
+                            ).show()
+                            showCheats()
+                        }
+                        NativeLibrary.EditCheatResult.INVALID_TITLE ->
+                            dialogBinding.cheatTitleLayout.error =
+                                getString(R.string.emulation_cheats_invalid_title)
+                        NativeLibrary.EditCheatResult.INVALID_CODE ->
+                            dialogBinding.cheatCodeLayout.error =
+                                getString(R.string.emulation_cheats_invalid_code)
+                        NativeLibrary.EditCheatResult.DUPLICATE_TITLE ->
+                            dialogBinding.cheatTitleLayout.error =
+                                getString(R.string.emulation_cheats_duplicate_title)
+                        NativeLibrary.EditCheatResult.NOT_FOUND ->
+                            dialogBinding.cheatTitleLayout.error =
+                                getString(R.string.emulation_cheats_not_found)
+                        else ->
+                            dialogBinding.cheatCodeLayout.error =
+                                getString(R.string.emulation_cheats_add_failed)
+                    }
+                }
+            }
+        }
+        dialog.show()
+
+        viewLifecycleOwner.lifecycleScope.launch {
+            val code = withContext(Dispatchers.IO) {
+                NativeLibrary.getCheatCode(game.programId, cheat.version, cheat.name)
+            }
+            if (dialog.isShowing && code != null) {
+                dialogBinding.cheatCode.setText(code)
+            }
         }
     }
 
@@ -1115,31 +1227,71 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
 
     private fun addCheat(title: String, code: String, onResult: (Int) -> Unit) {
         viewLifecycleOwner.lifecycleScope.launch {
-            val result = cheatToggleMutex.withLock {
-                var shouldResume = false
-                try {
-                    shouldResume = emulationState.isRunning && !NativeLibrary.isPaused()
-                    if (shouldResume) {
-                        emulationState.pause()
-                    }
-                    withContext(Dispatchers.IO) {
-                        NativeLibrary.addCheat(game.programId, title, code).also {
-                            if (it == NativeLibrary.AddCheatResult.SUCCESS) {
-                                NativeConfig.saveGlobalConfig()
-                            }
-                        }
-                    }
-                } finally {
-                    withContext(NonCancellable) {
-                        if (shouldResume && emulationState.isPaused) {
-                            emulationState.run(false)
-                        }
+            val result = withCheatFileWrite {
+                NativeLibrary.addCheat(game.programId, title, code).also {
+                    if (it == NativeLibrary.AddCheatResult.SUCCESS) {
+                        NativeConfig.saveGlobalConfig()
                     }
                 }
             }
             onResult(result)
         }
     }
+
+    private fun editCheat(cheat: Patch, title: String, code: String, onResult: (Int) -> Unit) {
+        viewLifecycleOwner.lifecycleScope.launch {
+            val result = withCheatFileWrite {
+                NativeLibrary.editCheat(game.programId, cheat.version, cheat.name, title, code).also {
+                    if (it == NativeLibrary.EditCheatResult.SUCCESS) {
+                        NativeConfig.saveGlobalConfig()
+                    }
+                }
+            }
+            onResult(result)
+        }
+    }
+
+    private fun deleteCheat(cheat: Patch) {
+        viewLifecycleOwner.lifecycleScope.launch {
+            val deleted = withCheatFileWrite {
+                NativeLibrary.deleteCheat(game.programId, cheat.version, cheat.name).also {
+                    if (it) {
+                        NativeConfig.saveGlobalConfig()
+                    }
+                }
+            }
+            if (deleted) {
+                Toast.makeText(
+                    requireContext(),
+                    R.string.emulation_cheats_deleted,
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+            showCheats()
+        }
+    }
+
+    /**
+     * Runs a cheat file write with emulation paused, so the reload it triggers lands on a
+     * stable guest. Always resumes, even when the write throws.
+     */
+    private suspend fun <T> withCheatFileWrite(block: suspend () -> T): T =
+        cheatToggleMutex.withLock {
+            var shouldResume = false
+            try {
+                shouldResume = emulationState.isRunning && !NativeLibrary.isPaused()
+                if (shouldResume) {
+                    emulationState.pause()
+                }
+                withContext(Dispatchers.IO) { block() }
+            } finally {
+                withContext(NonCancellable) {
+                    if (shouldResume && emulationState.isPaused) {
+                        emulationState.run(false)
+                    }
+                }
+            }
+        }
 
     private fun setCheatEnabled(cheat: Patch, enabled: Boolean) {
         viewLifecycleOwner.lifecycleScope.launch {

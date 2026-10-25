@@ -861,6 +861,12 @@
     <string name="emulation_cheats_engine_unavailable">该游戏无法使用金手指引擎。</string>
     <string name="emulation_cheats_add_failed">无法保存金手指文件。</string>
     <string name="emulation_cheats_added">金手指已添加并启用。</string>
+    <string name="emulation_cheats_edit">编辑金手指</string>
+    <string name="emulation_cheats_saved">金手指已保存。</string>
+    <string name="emulation_cheats_not_found">找不到要编辑的金手指，其文件可能已被改动。</string>
+    <string name="emulation_cheats_delete">删除金手指</string>
+    <string name="emulation_cheats_delete_confirm">确定删除金手指「%1$s」？此操作无法撤销。</string>
+    <string name="emulation_cheats_deleted">金手指已删除。</string>
 
     <!-- Memory editor -->
     <string name="emulation_memory_editor">内存修改器</string>

@@ -884,6 +884,58 @@ static Core::SystemResultStatus RunEmulation(const std::string& filepath, const 
     return Core::SystemResultStatus::Success;
 }
 
+// A cheat's "source" is its addon directory plus the file name, e.g.
+// "Hot Cheats/1A2B3C4D5E6F7788.txt", and the file itself sits in that directory's cheats/.
+std::filesystem::path GetCheatFilePath(u64 program_id, std::string_view source) {
+    const auto separator = source.find_last_of('/');
+    const auto addon = source.substr(0, separator);
+    const auto file_name = source.substr(separator + 1);
+    return Common::FS::GetCitronPath(Common::FS::CitronPath::LoadDir) /
+           fmt::format("{:016X}", program_id) / addon / "cheats" / file_name;
+}
+
+std::string GetCheatEntryName(const Core::Memory::CheatEntry& entry) {
+    const auto& buffer = entry.definition.readable_name;
+    const auto end = std::find(buffer.cbegin(), buffer.cend(), '\0');
+    return std::string{buffer.data(), static_cast<std::size_t>(end - buffer.cbegin())};
+}
+
+std::string SerializeCheatOpcodes(const Core::Memory::CheatEntry& entry) {
+    std::string out;
+    for (std::size_t i = 0; i < entry.definition.num_opcodes; ++i) {
+        out += fmt::format("{:08X}\n", entry.definition.opcodes[i]);
+    }
+    return out;
+}
+
+std::string SerializeCheatEntry(const Core::Memory::CheatEntry& entry) {
+    const auto name = GetCheatEntryName(entry);
+    if (name.empty()) {
+        return SerializeCheatOpcodes(entry);
+    }
+    return fmt::format("[{}]\n{}", name, SerializeCheatOpcodes(entry));
+}
+
+bool WriteCheatFileAtomically(const std::filesystem::path& cheat_file,
+                              std::string_view contents) {
+    auto temporary_file = cheat_file;
+    temporary_file += ".tmp";
+    if (!Common::FS::RemoveFile(temporary_file)) {
+        return false;
+    }
+    SCOPE_EXIT {
+        void(Common::FS::RemoveFile(temporary_file));
+    };
+    if (Common::FS::WriteStringToFile(temporary_file, Common::FS::FileType::TextFile, contents) !=
+        contents.size()) {
+        return false;
+    }
+
+    std::error_code rename_error;
+    std::filesystem::rename(temporary_file, cheat_file, rename_error);
+    return !rename_error;
+}
+
 extern "C" {
 
 void Java_org_citron_citron_1emu_NativeLibrary_surfaceChanged(JNIEnv* env, jobject instance,
@@ -1738,22 +1790,7 @@ jint Java_org_citron_citron_1emu_NativeLibrary_addCheat(JNIEnv* env, jobject job
         return static_cast<jint>(Result::UnableToWrite);
     }
 
-    auto temporary_file = cheat_file;
-    temporary_file += ".tmp";
-    if (!Common::FS::RemoveFile(temporary_file)) {
-        return static_cast<jint>(Result::UnableToWrite);
-    }
-    SCOPE_EXIT {
-        void(Common::FS::RemoveFile(temporary_file));
-    };
-    if (Common::FS::WriteStringToFile(temporary_file, Common::FS::FileType::TextFile, contents) !=
-        contents.size()) {
-        return static_cast<jint>(Result::UnableToWrite);
-    }
-
-    std::error_code rename_error;
-    std::filesystem::rename(temporary_file, cheat_file, rename_error);
-    if (rename_error) {
+    if (!WriteCheatFileAtomically(cheat_file, contents)) {
         return static_cast<jint>(Result::UnableToWrite);
     }
 
@@ -1773,6 +1810,245 @@ jint Java_org_citron_citron_1emu_NativeLibrary_addCheat(JNIEnv* env, jobject job
                                    system.GetContentProvider()};
     cheat_engine->Reload(pm.CreateCheatList(cheat_engine->GetBuildId()));
     return static_cast<jint>(Result::Success);
+}
+
+jstring Java_org_citron_citron_1emu_NativeLibrary_getCheatCode(JNIEnv* env, jobject jobj,
+                                                              jstring jprogramId, jstring jsource,
+                                                              jstring jname) {
+    const auto program_id = EmulationSession::GetProgramId(env, jprogramId);
+    const auto source = Common::Android::GetJString(env, jsource);
+    const auto name = Common::Android::GetJString(env, jname);
+    if (program_id == 0 || source.empty() || name.empty()) {
+        return nullptr;
+    }
+
+    const auto cheat_file = GetCheatFilePath(program_id, source);
+    if (!Common::FS::Exists(cheat_file)) {
+        return nullptr;
+    }
+
+    const auto contents =
+        Common::FS::ReadStringFromFile(cheat_file, Common::FS::FileType::TextFile);
+    const Core::Memory::TextCheatParser parser;
+    for (const auto& entry : parser.Parse(contents)) {
+        if (entry.definition.num_opcodes > 0 && GetCheatEntryName(entry) == name) {
+            return Common::Android::ToJString(env, SerializeCheatOpcodes(entry));
+        }
+    }
+    return nullptr;
+}
+
+jint Java_org_citron_citron_1emu_NativeLibrary_editCheat(JNIEnv* env, jobject jobj,
+                                                        jstring jprogramId, jstring jsource,
+                                                        jstring joldName, jstring jtitle,
+                                                        jstring jcode) {
+    enum class Result : jint {
+        Success = 0,
+        InvalidTitle = 1,
+        InvalidCode = 2,
+        NoCheatEngine = 3,
+        UnableToWrite = 4,
+        DuplicateTitle = 5,
+        NotFound = 6,
+    };
+
+    auto& session = EmulationSession::GetInstance();
+    const auto session_lock = session.AcquireSessionLock();
+    auto& system = session.System();
+    auto* cheat_engine = system.GetCheatEngine();
+    if (cheat_engine == nullptr) {
+        return static_cast<jint>(Result::NoCheatEngine);
+    }
+
+    const auto program_id = EmulationSession::GetProgramId(env, jprogramId);
+    const auto source = Common::Android::GetJString(env, jsource);
+    const auto old_name = Common::StripSpaces(Common::Android::GetJString(env, joldName));
+    const auto title = Common::StripSpaces(Common::Android::GetJString(env, jtitle));
+    const auto code = Common::StripSpaces(Common::Android::GetJString(env, jcode));
+    if (program_id == 0 || source.empty() || old_name.empty()) {
+        return static_cast<jint>(Result::NotFound);
+    }
+
+    // Same rules as adding: a bare opcode block is named after the typed title, pasted text
+    // with [name] blocks brings its own names.
+    const auto has_named_entries = code.find('[') != std::string::npos;
+    if (!has_named_entries &&
+        (title.empty() ||
+         title.size() >= Core::Memory::CheatDefinition{}.readable_name.size() ||
+         title.find_first_of("[]{}\r\n") != std::string::npos)) {
+        return static_cast<jint>(Result::InvalidTitle);
+    }
+
+    const auto entry_text = has_named_entries ? code : fmt::format("[{}]\n{}\n", title, code);
+    const Core::Memory::TextCheatParser parser;
+    std::vector<Core::Memory::CheatEntry> replacements;
+    for (const auto& entry : parser.Parse(entry_text)) {
+        // The parser always emits a leading unnamed entry, and entries without opcodes carry
+        // no cheat at all; the cheat loader drops both.
+        if (entry.definition.num_opcodes == 0 || GetCheatEntryName(entry).empty()) {
+            continue;
+        }
+        replacements.push_back(entry);
+    }
+    if (replacements.empty()) {
+        return static_cast<jint>(Result::InvalidCode);
+    }
+    for (std::size_t i = 0; i < replacements.size(); ++i) {
+        for (std::size_t j = i + 1; j < replacements.size(); ++j) {
+            if (GetCheatEntryName(replacements[i]) == GetCheatEntryName(replacements[j])) {
+                return static_cast<jint>(Result::DuplicateTitle);
+            }
+        }
+    }
+
+    const auto cheat_file = GetCheatFilePath(program_id, source);
+    static std::mutex edit_cheat_mutex;
+    const std::scoped_lock edit_cheat_lock{edit_cheat_mutex};
+    if (!Common::FS::Exists(cheat_file)) {
+        return static_cast<jint>(Result::NotFound);
+    }
+    const auto contents =
+        Common::FS::ReadStringFromFile(cheat_file, Common::FS::FileType::TextFile);
+    if (contents.empty()) {
+        return static_cast<jint>(Result::NotFound);
+    }
+
+    // Swap the edited entry for its replacement, keeping every other entry untouched.
+    auto entries = parser.Parse(contents);
+    if (entries.empty()) {
+        return static_cast<jint>(Result::UnableToWrite);
+    }
+    std::vector<Core::Memory::CheatEntry> updated;
+    updated.reserve(entries.size() + replacements.size());
+    bool found = false;
+    for (const auto& entry : entries) {
+        if (!found && entry.definition.num_opcodes > 0 && GetCheatEntryName(entry) == old_name) {
+            found = true;
+            for (const auto& replacement : replacements) {
+                updated.push_back(replacement);
+            }
+            continue;
+        }
+        updated.push_back(entry);
+    }
+    if (!found) {
+        return static_cast<jint>(Result::NotFound);
+    }
+
+    // A rename must not collide with an entry that is already in the file.
+    for (const auto& replacement : replacements) {
+        const auto& new_name = GetCheatEntryName(replacement);
+        const auto matches = std::count_if(
+            updated.cbegin(), updated.cend(), [&new_name](const auto& entry) {
+                return entry.definition.num_opcodes > 0 && GetCheatEntryName(entry) == new_name;
+            });
+        if (matches > 1) {
+            return static_cast<jint>(Result::DuplicateTitle);
+        }
+    }
+
+    std::string new_contents;
+    for (const auto& entry : updated) {
+        new_contents += SerializeCheatEntry(entry);
+    }
+    if (!WriteCheatFileAtomically(cheat_file, new_contents)) {
+        return static_cast<jint>(Result::UnableToWrite);
+    }
+
+    // Carry the enablement over to the new name so editing does not silently enable a cheat
+    // the user had switched off.
+    const auto build_id = FileSys::GetCheatBuildId(cheat_engine->GetBuildId());
+    auto& disabled_cheats = Settings::values.disabled_cheats[build_id];
+    const auto old_key = FileSys::GetCheatConfigKey(source, old_name);
+    const auto was_disabled = disabled_cheats.contains(old_key);
+    disabled_cheats.erase(old_key);
+    disabled_cheats.erase(old_name);
+    for (const auto& replacement : replacements) {
+        const auto& new_name = GetCheatEntryName(replacement);
+        if (new_name != old_name && was_disabled) {
+            disabled_cheats.insert(FileSys::GetCheatConfigKey(source, new_name));
+        }
+    }
+    if (disabled_cheats.empty()) {
+        Settings::values.disabled_cheats.erase(build_id);
+    }
+
+    const FileSys::PatchManager pm{program_id, system.GetFileSystemController(),
+                                   system.GetContentProvider()};
+    cheat_engine->Reload(pm.CreateCheatList(cheat_engine->GetBuildId()));
+    return static_cast<jint>(Result::Success);
+}
+
+jboolean Java_org_citron_citron_1emu_NativeLibrary_deleteCheat(JNIEnv* env, jobject jobj,
+                                                              jstring jprogramId, jstring jsource,
+                                                              jstring jname) {
+    auto& session = EmulationSession::GetInstance();
+    const auto session_lock = session.AcquireSessionLock();
+    auto& system = session.System();
+    auto* cheat_engine = system.GetCheatEngine();
+    if (cheat_engine == nullptr) {
+        return false;
+    }
+
+    const auto program_id = EmulationSession::GetProgramId(env, jprogramId);
+    const auto source = Common::Android::GetJString(env, jsource);
+    const auto name = Common::StripSpaces(Common::Android::GetJString(env, jname));
+    if (program_id == 0 || source.empty() || name.empty()) {
+        return false;
+    }
+
+    const auto cheat_file = GetCheatFilePath(program_id, source);
+    static std::mutex delete_cheat_mutex;
+    const std::scoped_lock delete_cheat_lock{delete_cheat_mutex};
+    if (!Common::FS::Exists(cheat_file)) {
+        return false;
+    }
+    const auto contents =
+        Common::FS::ReadStringFromFile(cheat_file, Common::FS::FileType::TextFile);
+    if (contents.empty()) {
+        return false;
+    }
+
+    const Core::Memory::TextCheatParser parser;
+    auto entries = parser.Parse(contents);
+    if (entries.empty()) {
+        return false;
+    }
+
+    std::vector<Core::Memory::CheatEntry> remaining;
+    remaining.reserve(entries.size());
+    bool found = false;
+    for (const auto& entry : entries) {
+        if (!found && entry.definition.num_opcodes > 0 && GetCheatEntryName(entry) == name) {
+            found = true;
+            continue;
+        }
+        remaining.push_back(entry);
+    }
+    if (!found) {
+        return false;
+    }
+
+    std::string new_contents;
+    for (const auto& entry : remaining) {
+        new_contents += SerializeCheatEntry(entry);
+    }
+    if (!WriteCheatFileAtomically(cheat_file, new_contents)) {
+        return false;
+    }
+
+    const auto build_id = FileSys::GetCheatBuildId(cheat_engine->GetBuildId());
+    auto& disabled_cheats = Settings::values.disabled_cheats[build_id];
+    disabled_cheats.erase(FileSys::GetCheatConfigKey(source, name));
+    disabled_cheats.erase(name);
+    if (disabled_cheats.empty()) {
+        Settings::values.disabled_cheats.erase(build_id);
+    }
+
+    const FileSys::PatchManager pm{program_id, system.GetFileSystemController(),
+                                   system.GetContentProvider()};
+    cheat_engine->Reload(pm.CreateCheatList(cheat_engine->GetBuildId()));
+    return true;
 }
 
 jboolean Java_org_citron_citron_1emu_NativeLibrary_removeBaseContent(JNIEnv* env, jobject jobj,

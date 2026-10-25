@@ -514,6 +514,51 @@ object NativeLibrary {
      */
     external fun addCheat(programId: String, title: String, code: String): Int
 
+    object EditCheatResult {
+        const val SUCCESS = 0
+        const val INVALID_TITLE = 1
+        const val INVALID_CODE = 2
+        const val NO_CHEAT_ENGINE = 3
+        const val UNABLE_TO_WRITE = 4
+        const val DUPLICATE_TITLE = 5
+        const val NOT_FOUND = 6
+    }
+
+    /**
+     * Returns the Atmosphère cheat code of an existing cheat, without its name header.
+     *
+     * @param programId String representation of a game's program ID
+     * @param source Source identifier of the cheat file the cheat lives in
+     * @param name Readable cheat name
+     * @return The cheat's opcodes, or null when the cheat or its file cannot be read
+     */
+    external fun getCheatCode(programId: String, source: String, name: String): String?
+
+    /**
+     * Replaces an existing cheat's name and code in place and hot reloads it. The remaining
+     * cheats in the same file are left untouched.
+     *
+     * @return A value from [EditCheatResult].
+     */
+    external fun editCheat(
+        programId: String,
+        source: String,
+        name: String,
+        title: String,
+        code: String
+    ): Int
+
+    /**
+     * Removes a single cheat from its file and hot reloads. The other cheats in the same file
+     * are left intact.
+     *
+     * @param programId String representation of a game's program ID
+     * @param source Source identifier of the cheat file the cheat lives in
+     * @param name Readable cheat name
+     * @return true when the cheat was found and removed
+     */
+    external fun deleteCheat(programId: String, source: String, name: String): Boolean
+
     object MemScanResult {
         const val SUCCESS = 0
         const val NO_PROCESS = 1
