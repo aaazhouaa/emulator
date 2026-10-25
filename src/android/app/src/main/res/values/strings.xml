@@ -603,6 +603,8 @@
     <string name="invalid_directory">Invalid directory</string>
     <!-- "cheats/" "romfs/" and "exefs/ should not be translated -->
     <string name="invalid_directory_description">Please make sure that the directory you selected contains a cheats/, romfs/, or exefs/ folder and try again.</string>
+    <string name="addon_copy_failed">Copy failed</string>
+    <string name="addon_copy_failed_description">An error occurred while copying the selected folder into the app directory. Make sure the folder contains no very large files and that there is enough free storage, then try again.</string>
     <string name="addon_installed_successfully">Addon installed successfully</string>
     <string name="verifying_content">Verifying content…</string>
     <string name="content_install_notice">Content install notice</string>
@@ -753,6 +755,7 @@
     <string name="mem_freeze_clear_confirm">Remove every address from the table?</string>
     <string name="mem_confirm">OK</string>
     <string name="mem_scan_value_pattern">Bytes, hex (?? for wildcard)</string>
+    <string name="mem_scan_value_text">Text to search</string>
     <string name="mem_scan_value_float">Floating point value</string>
     <string name="mem_invalid_value">Enter a valid value for the selected type.</string>
     <string name="mem_scan_failed_stopped">Scanner stopped responding</string>

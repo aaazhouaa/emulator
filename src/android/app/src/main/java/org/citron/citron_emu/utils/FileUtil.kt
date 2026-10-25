@@ -408,7 +408,7 @@ object FileUtil {
             val newFile = File(file, it.name!!)
             if (it.isDirectory) {
                 newFile.mkdirs()
-                DocumentFile.fromTreeUri(CitronApplication.appContext, it.uri)?.copyFilesTo(newFile)
+                it.copyFilesTo(newFile)
             } else {
                 val inputStream =
                     CitronApplication.appContext.contentResolver.openInputStream(it.uri)

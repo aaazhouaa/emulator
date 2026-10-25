@@ -449,6 +449,8 @@
     <string name="invalid_directory">无效目录</string>
     <!-- "cheats/" "romfs/" and "exefs/ should not be translated -->
     <string name="invalid_directory_description">请确保您选择的目录下包含 cheats/、romfs/ 或 exefs/ 文件夹然后重试。</string>
+    <string name="addon_copy_failed">拷贝失败</string>
+    <string name="addon_copy_failed_description">复制所选目录到应用目录时出错。请确认所选目录中没有超大文件，并确保存储空间充足后重试。</string>
     <string name="addon_installed_successfully">附加项安装成功</string>
     <string name="verifying_content">验证安装内容...</string>
     <string name="content_install_notice">安装提醒</string>
@@ -934,6 +936,7 @@
     <string name="mem_freeze_clear_confirm">移除地址表中的全部地址？</string>
     <string name="mem_confirm">确定</string>
     <string name="mem_scan_value_pattern">字节，十六进制（?? 表示通配）</string>
+    <string name="mem_scan_value_text">输入要搜索的文本</string>
     <string name="mem_scan_value_float">浮点数</string>
     <string name="mem_invalid_value">请输入所选类型对应的有效数值。</string>
     <string name="mem_scan_failed_stopped">扫描进程无响应</string>

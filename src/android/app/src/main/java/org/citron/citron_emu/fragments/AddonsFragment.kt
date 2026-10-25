@@ -162,6 +162,11 @@ class AddonsFragment : Fragment() {
                 titleId = R.string.invalid_directory,
                 descriptionId = R.string.invalid_directory_description
             )
+            val copyErrorMessage = MessageDialogFragment.newInstance(
+                requireActivity(),
+                titleId = R.string.addon_copy_failed,
+                descriptionId = R.string.addon_copy_failed_description
+            )
             if (isValid) {
                 ProgressDialogFragment.newInstance(
                     requireActivity(),
@@ -169,13 +174,13 @@ class AddonsFragment : Fragment() {
                     false
                 ) { progressCallback, _ ->
                     val parentDirectoryName =
-                        externalAddonDirectory.name ?: return@newInstance errorMessage
+                        externalAddonDirectory.name ?: return@newInstance copyErrorMessage
                     val internalAddonDirectory =
                         File(args.game.addonDir + parentDirectoryName)
                     try {
                         externalAddonDirectory.copyFilesTo(internalAddonDirectory, progressCallback)
                     } catch (_: Exception) {
-                        return@newInstance errorMessage
+                        return@newInstance copyErrorMessage
                     }
                     NativeLibrary.disableCheatsForAddon(args.game.programId, parentDirectoryName)
                     NativeConfig.saveGlobalConfig()
