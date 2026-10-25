@@ -244,12 +244,13 @@ std::optional<VAddr> AppLoader_NSO::LoadModule(Kernel::KProcess& process, Core::
         system.SetApplicationProcessBuildID(nso_header.build_id);
     }
 
-    // Apply cheats if they exist and the program has a valid title ID
-    if (pm) {
-        const auto cheats = pm->CreateCheatList(nso_header.build_id);
-        if (!cheats.empty()) {
-            system.RegisterCheatList(cheats, nso_header.build_id, load_base, image_size);
-        }
+    // The cheat engine must exist even when the game ships no matching cheat file: the frontend
+    // lists, toggles and hot-adds cheats through it, so a game without a cheat on disk would
+    // otherwise have no engine at all. Only main carries the title's build ID, so the SDK modules
+    // loaded after it must not replace what main registered.
+    if (pm && name == "main") {
+        system.RegisterCheatList(pm->CreateCheatList(nso_header.build_id), nso_header.build_id,
+                                 load_base, image_size);
     }
 
     // Load codeset for current process

@@ -1655,16 +1655,41 @@ jint Java_org_citron_citron_1emu_NativeLibrary_addCheat(JNIEnv* env, jobject job
     const auto program_id = EmulationSession::GetProgramId(env, jprogramId);
     const auto title = Common::StripSpaces(Common::Android::GetJString(env, jtitle));
     const auto code = Common::StripSpaces(Common::Android::GetJString(env, jcode));
-    if (program_id == 0 || title.empty() ||
-        title.size() >= Core::Memory::CheatDefinition{}.readable_name.size() ||
-        title.find_first_of("[]{}\r\n") != std::string::npos) {
+    // A bare opcode block is named after the title the user typed, while pasted text that
+    // already carries [name] blocks brings its own names and needs no title.
+    const auto has_named_entries = code.find('[') != std::string::npos;
+    if (program_id == 0 ||
+        (!has_named_entries &&
+         (title.empty() ||
+          title.size() >= Core::Memory::CheatDefinition{}.readable_name.size() ||
+          title.find_first_of("[]{}\r\n") != std::string::npos))) {
         return static_cast<jint>(Result::InvalidTitle);
     }
 
-    const auto entry_text = fmt::format("[{}]\n{}\n", title, code);
+    const auto entry_text = has_named_entries ? code : fmt::format("[{}]\n{}\n", title, code);
     const Core::Memory::TextCheatParser parser;
+    const auto entry_name = [](const Core::Memory::CheatEntry& entry) {
+        const auto& buffer = entry.definition.readable_name;
+        const auto end = std::find(buffer.cbegin(), buffer.cend(), '\0');
+        return std::string{buffer.data(), static_cast<std::size_t>(end - buffer.cbegin())};
+    };
+
     const auto new_entries = parser.Parse(entry_text);
-    if (new_entries.size() != 2 || new_entries[1].definition.num_opcodes == 0) {
+    std::vector<std::string> added_names;
+    added_names.reserve(new_entries.size());
+    for (const auto& entry : new_entries) {
+        // The parser always emits a leading unnamed entry, and entries without opcodes carry
+        // no cheat at all; the cheat loader drops both.
+        if (entry.definition.num_opcodes == 0) {
+            continue;
+        }
+        const auto name = entry_name(entry);
+        if (name.empty()) {
+            continue;
+        }
+        added_names.push_back(name);
+    }
+    if (added_names.empty()) {
         return static_cast<jint>(Result::InvalidCode);
     }
 
@@ -1695,15 +1720,13 @@ jint Java_org_citron_citron_1emu_NativeLibrary_addCheat(JNIEnv* env, jobject job
         if (current_entries.empty()) {
             return static_cast<jint>(Result::UnableToWrite);
         }
-        const auto has_duplicate = std::any_of(
-            current_entries.cbegin(), current_entries.cend(), [&title](const auto& entry) {
-                const auto& name = entry.definition.readable_name;
-                const auto end = std::find(name.cbegin(), name.cend(), '\0');
-                return std::string_view{name.data(),
-                                        static_cast<std::size_t>(end - name.cbegin())} == title;
-            });
-        if (has_duplicate) {
-            return static_cast<jint>(Result::DuplicateTitle);
+        for (const auto& added : added_names) {
+            const auto has_duplicate = std::any_of(
+                current_entries.cbegin(), current_entries.cend(),
+                [&added, &entry_name](const auto& entry) { return entry_name(entry) == added; });
+            if (has_duplicate) {
+                return static_cast<jint>(Result::DuplicateTitle);
+            }
         }
     }
 
@@ -1738,8 +1761,10 @@ jint Java_org_citron_citron_1emu_NativeLibrary_addCheat(JNIEnv* env, jobject job
     std::erase(disabled_addons, HotCheatsDirectory);
     auto& disabled_cheats = Settings::values.disabled_cheats[build_id];
     const auto source = fmt::format("{}/{}.txt", HotCheatsDirectory, build_id);
-    disabled_cheats.erase(FileSys::GetCheatConfigKey(source, title));
-    disabled_cheats.erase(title);
+    for (const auto& name : added_names) {
+        disabled_cheats.erase(FileSys::GetCheatConfigKey(source, name));
+        disabled_cheats.erase(name);
+    }
     if (disabled_cheats.empty()) {
         Settings::values.disabled_cheats.erase(build_id);
     }

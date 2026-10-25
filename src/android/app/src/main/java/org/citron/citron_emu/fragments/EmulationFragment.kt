@@ -1060,7 +1060,9 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
                 val code = dialogBinding.cheatCode.text?.toString()?.trim().orEmpty()
                 dialogBinding.cheatTitleLayout.error = null
                 dialogBinding.cheatCodeLayout.error = null
-                if (title.isEmpty()) {
+                // Pasted text with its own [name] blocks brings its own names, so the title is
+                // only required for a bare opcode block.
+                if (title.isEmpty() && !code.contains('[')) {
                     dialogBinding.cheatTitleLayout.error =
                         getString(R.string.emulation_cheats_invalid_title)
                     return@setOnClickListener
