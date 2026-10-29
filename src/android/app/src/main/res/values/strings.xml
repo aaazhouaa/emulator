@@ -760,6 +760,8 @@
     <string name="mem_table_clear">Clear</string>
     <string name="mem_freeze_clear_confirm">Remove every address from the table?</string>
     <string name="mem_confirm">OK</string>
+    <string name="mem_keypad_backspace">Delete</string>
+    <string name="mem_keypad_ime">Keyboard</string>
     <string name="mem_scan_value_pattern">Bytes, hex (?? for wildcard)</string>
     <string name="mem_scan_value_text">Text to search</string>
     <string name="mem_scan_value_float">Floating point value</string>

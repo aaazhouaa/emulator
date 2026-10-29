@@ -14,6 +14,7 @@ import android.view.ViewGroup
 import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
 import android.widget.ArrayAdapter
+import android.widget.EditText
 import android.widget.Filter
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
@@ -140,6 +141,12 @@ class MemoryEditorFragment : DialogFragment() {
 
     /** Height one field of the value dialog gets, in px; set when the dialog is positioned. */
     private var valueFieldHeight = 0
+
+    /** The field the built-in keypad types into; the value field unless the description has focus. */
+    private var keypadTarget: EditText? = null
+
+    /** The value field of the open value dialog, which never raises the system IME by itself. */
+    private var keypadValueField: EditText? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -311,6 +318,79 @@ class MemoryEditorFragment : DialogFragment() {
         panel.memScanFirst.setOnClickListener { startFirstScan() }
         panel.memScanNext.setOnClickListener { refineScan() }
         panel.memScanReset.setOnClickListener { viewModel.clearResults() }
+
+        setupScanKeypad(panel)
+    }
+
+    /**
+     * Wires the built-in keypad to the scan's value field.
+     *
+     * Numeric types type through the keypad, so focusing the field only slides the keypad up. Text
+     * and byte patterns cannot be expressed with digits, so those types keep the system IME and the
+     * keypad stays out of the way. The "keyboard" key switches to the system IME on demand either
+     * way.
+     */
+    private fun setupScanKeypad(panel: ViewMemScanBinding) {
+        val field = panel.memScanValue
+
+        panel.memScanKeypad.onKey = { label -> insertIntoField(field, label) }
+        panel.memScanKeypad.onBackspace = { deleteFromField(field) }
+        panel.memScanKeypad.onSystemKeyboard = {
+            // Closing the IME hands the field back to the keypad: focusing it again must not
+            // raise the IME a second time.
+            if (MemFieldInput.toggleSystemIme(field) && keypadSupports(currentType())) {
+                field.showSoftInputOnFocus = false
+            }
+        }
+
+        field.setOnFocusChangeListener { _, hasFocus ->
+            if (hasFocus) {
+                showScanKeypad(panel)
+            } else {
+                panel.memScanKeypad.setVisible(visible = false, gone = true)
+                MemFieldInput.hideSystemIme(field)
+                // Back to typing through the keypad: the system IME is only reopened by the
+                // "keyboard" key, which opens it up for that one request.
+                if (keypadSupports(currentType())) field.showSoftInputOnFocus = false
+            }
+        }
+
+        // Tapping anywhere but the field's own box and the keypad drops the focus, which also
+        // closes the keypad. The whole outlined box is kept rather than just the text view inside
+        // it: its padding belongs to the field as far as the user is concerned.
+        panel.root.keepFocusIn = listOf(panel.memScanValueLayout, panel.memScanKeypad)
+
+        updateScanKeypad(panel, currentType())
+    }
+
+    /**
+     * Slides the keypad in under the value field. It takes the bottom two thirds of the panel,
+     * measured here because the panel has a size only once it is laid out.
+     */
+    private fun showScanKeypad(panel: ViewMemScanBinding) {
+        if (!keypadSupports(currentType())) return
+        val panelHeight = binding.root.height
+        if (panelHeight > 0) {
+            panel.memScanKeypad.updateLayoutParams { this.height = panelHeight * 2 / 3 }
+        }
+        panel.memScanKeypad.setVisible(visible = true, gone = true)
+    }
+
+    /** Only digits, a decimal point and a sign can be produced by the built-in keypad. */
+    private fun keypadSupports(type: MemValueType): Boolean = !type.isPattern
+
+    /**
+     * Puts the scan field on the keypad or back on the system IME, matching [type]. The keypad is
+     * hidden here as well: changing the type while the field is focused must not leave a keypad
+     * under a field it cannot type into.
+     */
+    private fun updateScanKeypad(panel: ViewMemScanBinding, type: MemValueType) {
+        val supportsKeypad = keypadSupports(type)
+        panel.memScanValue.showSoftInputOnFocus = !supportsKeypad
+        panel.memScanKeypad.setVisible(
+            visible = supportsKeypad && panel.memScanValue.hasFocus(),
+            gone = true
+        )
     }
 
     /**
@@ -321,6 +401,7 @@ class MemoryEditorFragment : DialogFragment() {
      */
     private fun releaseValueField() {
         scanBinding.memScanValue.clearFocus()
+        scanBinding.memScanKeypad.setVisible(visible = false, gone = true)
         dismissKeyboard(scanBinding.memScanValue)
     }
 
@@ -345,6 +426,7 @@ class MemoryEditorFragment : DialogFragment() {
             input.inputType = targetInputType
             input.setSelection(selection.first.coerceIn(0, input.text?.length ?: 0))
         }
+        updateScanKeypad(scanBinding, type)
     }
 
     private fun updateValueHint() {
@@ -475,6 +557,8 @@ class MemoryEditorFragment : DialogFragment() {
             .setBackgroundInsetBottom(0)
             .create()
 
+        setupKeypad(dialogBinding)
+
         dialogBinding.memValueCancel.setOnClickListener { dialog.dismiss() }
         dialogBinding.memValueConfirm.setOnClickListener {
             val text = dialogBinding.memValue.text?.toString().orEmpty()
@@ -496,13 +580,84 @@ class MemoryEditorFragment : DialogFragment() {
 
         dialog.show()
         positionDialogOnScanPanel(dialog, dialogBinding)
+        dialog.setOnDismissListener {
+            keypadTarget = null
+            keypadValueField = null
+        }
+    }
+
+    /**
+     * Wires the built-in keypad to the field it should type into.
+     *
+     * The value field never raises the system IME on its own: the keypad under the dialog is its
+     * input. The description field is text, so it keeps the system IME and the keypad follows
+     * whichever field was touched last. The "keyboard" key hands the current field over to the
+     * user's own IME for anything the keypad cannot express.
+     */
+    private fun setupKeypad(dialogBinding: DialogMemValueBinding) {
+        val valueField = dialogBinding.memValue
+        val descriptionField = dialogBinding.memDescription
+
+        // The value field types through the keypad, so focus alone must not raise the system IME.
+        valueField.showSoftInputOnFocus = false
+        keypadTarget = valueField
+        keypadValueField = valueField
+
+        valueField.setOnFocusChangeListener { _, hasFocus ->
+            if (hasFocus) {
+                keypadTarget = valueField
+            } else {
+                // A later "keyboard" tap has to start from the keypad-only state again.
+                valueField.showSoftInputOnFocus = false
+            }
+        }
+        descriptionField.setOnFocusChangeListener { _, hasFocus ->
+            if (hasFocus) keypadTarget = descriptionField
+        }
+
+        dialogBinding.memKeypad.onKey = { label ->
+            insertIntoField(keypadTarget ?: valueField, label)
+        }
+        dialogBinding.memKeypad.onBackspace = {
+            deleteFromField(keypadTarget ?: valueField)
+        }
+        dialogBinding.memKeypad.onSystemKeyboard = {
+            val target = keypadTarget ?: valueField
+            // Closing the IME on the value field hands it back to the keypad, so the next focus
+            // there does not raise the IME again. The description field is text and keeps it.
+            if (MemFieldInput.toggleSystemIme(target) && target === valueField) {
+                valueField.showSoftInputOnFocus = false
+            }
+        }
+    }
+
+    /** Types [label] at the caret of [field], replacing the selection if it has one. */
+    private fun insertIntoField(field: EditText, label: String) {
+        takeBackFromSystemIme(field)
+        MemFieldInput.insert(field, label)
+    }
+
+    /** Deletes the selection of [field], or the character before the caret when there is none. */
+    private fun deleteFromField(field: EditText) {
+        takeBackFromSystemIme(field)
+        MemFieldInput.delete(field)
+    }
+
+    /**
+     * Keypad input means the user is done with the system IME, which the "keyboard" key may have
+     * opened over the keypad. The field goes back to keypad-only until the key asks for it again.
+     */
+    private fun takeBackFromSystemIme(field: EditText) {
+        val scanValue = _scanBinding?.memScanValue
+        if (field !== keypadValueField && field !== scanValue) return
+        MemFieldInput.hideSystemIme(field)
+        field.showSoftInputOnFocus = false
     }
 
     /**
      * Puts the value dialog on top of the panel it was opened from: same width, flush against
-     * the panel's top-left corner, and a third of the panel's height. The rows and the fields
-     * inside them are sized directly as well, because the window height is not the only thing
-     * that decides the dialog's size.
+     * the panel's top-left corner. The window covers the whole panel so the built-in keypad can
+     * reach the bottom of it; the field card is the top third of that, the keypad the rest.
      */
     private fun positionDialogOnScanPanel(dialog: AlertDialog, dialogBinding: DialogMemValueBinding) {
         val window = dialog.window ?: return
@@ -514,27 +669,33 @@ class MemoryEditorFragment : DialogFragment() {
         // height still wins when it is laid out: measuring it is only unreliable for the pages
         // inside the pager, and those are what read back as zero.
         val panelHeight = panel.height.takeIf { it > 0 } ?: resources.displayMetrics.heightPixels
-        val height = panelHeight / 3
+        val cardHeight = panelHeight / 3
 
+        // The keypad sits at the bottom of the panel and the system IME (raised by the "keyboard"
+        // key) draws over it: resizing the window for the IME would squash the card instead.
+        window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
         window.setGravity(Gravity.TOP or Gravity.START)
         window.attributes = window.attributes.apply {
             x = panelLocation[0]
             y = panelLocation[1]
             width = panel.width
-            this.height = height
+            height = panelHeight
         }
 
-        // The window height is not the only thing that decides the dialog's size, so the rows are
-        // sized directly as well: together with the dialog's padding they come to the same height.
+        // The window height is not the only thing that decides the dialog's size, so the card is
+        // sized directly, and the rows inside it as well.
         val density = resources.displayMetrics.density
         val verticalExtras = (12 + 12 + 8) * density
-        val rowHeight = ((height - verticalExtras) / 2).toInt().coerceAtLeast(1)
+        val rowHeight = ((cardHeight - verticalExtras) / 2).toInt().coerceAtLeast(1)
 
-        // Half of the dialog per row, and each outlined box fills its row: the box keeps a slice
+        // Half of the card per row, and each outlined box fills its row: the box keeps a slice
         // of its own space around the text field, so the field starts out a slice short of the row.
         val minFieldHeight = (MIN_FIELD_HEIGHT_DP * density).toInt()
         valueFieldHeight = (rowHeight - FIELD_BOX_EXTRA_DP * density).toInt()
             .coerceAtLeast(minFieldHeight)
+        // The alert's own content holder is wrap_content, so the root is told to fill the window.
+        dialogBinding.root.updateLayoutParams { this.height = panelHeight }
+        dialogBinding.memValueCard.updateLayoutParams { this.height = cardHeight }
         dialogBinding.memValueRow.updateLayoutParams { this.height = rowHeight }
         dialogBinding.memDescriptionRow.updateLayoutParams { this.height = rowHeight }
         dialogBinding.memDescription.minHeight = valueFieldHeight

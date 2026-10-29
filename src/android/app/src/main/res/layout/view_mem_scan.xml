@@ -1,199 +1,226 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<org.citron.citron_emu.features.memory.ui.TapOutsideFocusLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:paddingHorizontal="12dp"
-    android:paddingTop="6dp"
-    android:paddingBottom="10dp">
+    android:orientation="vertical">
 
-    <!-- Top Action Row: Scan on left, Spacer, Reset + Address Table + Help on right -->
+    <!--
+      Everything above the keypad. The paddings live here rather than on the root so the keypad
+      can sit flush against the panel's sides and bottom.
+    -->
     <LinearLayout
-        android:id="@+id/mem_scan_top_row"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:gravity="center_vertical"
-        android:orientation="horizontal">
-
-        <!-- First scan button (idle state, pinned far left) -->
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/mem_scan_first"
-            style="@style/Widget.Material3.Button"
-            android:layout_width="wrap_content"
-            android:layout_height="36dp"
-            android:insetTop="0dp"
-            android:insetBottom="0dp"
-            android:minWidth="0dp"
-            android:minHeight="0dp"
-            android:paddingHorizontal="14dp"
-            android:text="@string/mem_scan_first"
-            android:textSize="12sp" />
-
-        <!-- Next scan button (refine state, stays pinned far left) -->
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/mem_scan_next"
-            style="@style/Widget.Material3.Button"
-            android:layout_width="wrap_content"
-            android:layout_height="36dp"
-            android:insetTop="0dp"
-            android:insetBottom="0dp"
-            android:minWidth="0dp"
-            android:minHeight="0dp"
-            android:paddingHorizontal="14dp"
-            android:text="@string/mem_scan_next"
-            android:textSize="12sp"
-            android:visibility="gone" />
-
-        <!-- Wide spacer separates scan button from reset and navigation -->
-        <View
-            android:layout_width="0dp"
-            android:layout_height="1dp"
-            android:layout_weight="1" />
-
-        <!-- Reset button (moved far right, right before address table button) -->
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/mem_scan_reset"
-            style="@style/Widget.Material3.Button.OutlinedButton"
-            android:layout_width="wrap_content"
-            android:layout_height="36dp"
-            android:layout_marginEnd="10dp"
-            android:insetTop="0dp"
-            android:insetBottom="0dp"
-            android:minWidth="0dp"
-            android:minHeight="0dp"
-            android:paddingHorizontal="12dp"
-            android:text="@string/mem_scan_reset"
-            android:textSize="12sp"
-            android:visibility="gone"
-            app:strokeWidth="1dp" />
-
-        <!-- Address Table switch button pinned to far right -->
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/mem_scan_go_table"
-            style="@style/Widget.Material3.Button.TextButton"
-            android:layout_width="wrap_content"
-            android:layout_height="36dp"
-            android:insetTop="0dp"
-            android:insetBottom="0dp"
-            android:minWidth="0dp"
-            android:minHeight="0dp"
-            android:paddingHorizontal="8dp"
-            android:text="@string/mem_tab_table"
-            android:textSize="12sp"
-            app:icon="@drawable/ic_arrow_forward"
-            app:iconGravity="end"
-            app:iconPadding="4dp"
-            app:iconSize="14dp" />
-
-        <!-- Help icon -->
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/mem_scan_help"
-            style="@style/Widget.Material3.Button.IconButton"
-            android:layout_width="36dp"
-            android:layout_height="36dp"
-            android:insetTop="0dp"
-            android:insetBottom="0dp"
-            android:contentDescription="@string/mem_scan_type_help"
-            app:icon="@drawable/ic_info_outline"
-            app:iconGravity="textStart"
-            app:iconPadding="0dp"
-            app:iconSize="18dp" />
-
-    </LinearLayout>
-
-    <!-- Type and Value in one row: identical Dense style, minHeight and padding -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="6dp"
-        android:baselineAligned="false"
-        android:orientation="horizontal">
-
-        <!-- Type -->
-        <com.google.android.material.textfield.TextInputLayout
-            android:id="@+id/mem_scan_type_layout"
-            style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense.ExposedDropdownMenu"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="4.2"
-            android:hint="@string/mem_scan_type"
-            app:endIconMinSize="36dp">
-
-            <com.google.android.material.textfield.MaterialAutoCompleteTextView
-                android:id="@+id/mem_scan_type"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:minHeight="44dp"
-                android:ellipsize="end"
-                android:inputType="none"
-                android:maxLines="1"
-                android:paddingTop="8dp"
-                android:paddingBottom="8dp"
-                android:singleLine="true"
-                android:textSize="13sp" />
-
-        </com.google.android.material.textfield.TextInputLayout>
-
-        <!-- Value -->
-        <com.google.android.material.textfield.TextInputLayout
-            android:id="@+id/mem_scan_value_layout"
-            style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
-            android:layout_weight="5.8"
-            android:hint="@string/mem_scan_value">
-
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/mem_scan_value"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:minHeight="44dp"
-                android:inputType="number"
-                android:paddingTop="8dp"
-                android:paddingBottom="8dp"
-                android:singleLine="true"
-                android:textSize="13sp" />
-
-        </com.google.android.material.textfield.TextInputLayout>
-
-    </LinearLayout>
-
-    <com.google.android.material.progressindicator.LinearProgressIndicator
-        android:id="@+id/mem_scan_progress"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:visibility="gone"
-        app:trackCornerRadius="4dp" />
-
-    <com.google.android.material.textview.MaterialTextView
-        android:id="@+id/mem_scan_status"
-        style="@style/TextAppearance.Material3.BodySmall"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:textAlignment="viewStart"
-        android:textSize="12sp"
-        tools:text="0 results" />
-
-    <org.citron.citron_emu.features.memory.ui.NestedScrollableHost
+        android:id="@+id/mem_scan_content"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:layout_marginTop="4dp">
+        android:orientation="vertical"
+        android:paddingHorizontal="12dp"
+        android:paddingTop="6dp"
+        android:paddingBottom="10dp">
 
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/mem_scan_results"
+        <!-- Top Action Row: Scan on left, Spacer, Reset + Address Table + Help on right -->
+        <LinearLayout
+            android:id="@+id/mem_scan_top_row"
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:clipToPadding="false"
-            android:nestedScrollingEnabled="true"
-            android:overScrollMode="never"
-            tools:listitem="@layout/list_item_scan_result" />
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
 
-    </org.citron.citron_emu.features.memory.ui.NestedScrollableHost>
+            <!-- First scan button (idle state, pinned far left) -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/mem_scan_first"
+                style="@style/Widget.Material3.Button"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:paddingHorizontal="14dp"
+                android:text="@string/mem_scan_first"
+                android:textSize="12sp" />
 
-</LinearLayout>
+            <!-- Next scan button (refine state, stays pinned far left) -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/mem_scan_next"
+                style="@style/Widget.Material3.Button"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:paddingHorizontal="14dp"
+                android:text="@string/mem_scan_next"
+                android:textSize="12sp"
+                android:visibility="gone" />
+
+            <!-- Wide spacer separates scan button from reset and navigation -->
+            <View
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" />
+
+            <!-- Reset button (moved far right, right before address table button) -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/mem_scan_reset"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:layout_marginEnd="10dp"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:paddingHorizontal="12dp"
+                android:text="@string/mem_scan_reset"
+                android:textSize="12sp"
+                android:visibility="gone"
+                app:strokeWidth="1dp" />
+
+            <!-- Address Table switch button pinned to far right -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/mem_scan_go_table"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:paddingHorizontal="8dp"
+                android:text="@string/mem_tab_table"
+                android:textSize="12sp"
+                app:icon="@drawable/ic_arrow_forward"
+                app:iconGravity="end"
+                app:iconPadding="4dp"
+                app:iconSize="14dp" />
+
+            <!-- Help icon -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/mem_scan_help"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:contentDescription="@string/mem_scan_type_help"
+                app:icon="@drawable/ic_info_outline"
+                app:iconGravity="textStart"
+                app:iconPadding="0dp"
+                app:iconSize="18dp" />
+
+        </LinearLayout>
+
+        <!-- Type and Value in one row: identical Dense style, minHeight and padding -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:baselineAligned="false"
+            android:orientation="horizontal">
+
+            <!-- Type -->
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/mem_scan_type_layout"
+                style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense.ExposedDropdownMenu"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="4.2"
+                android:hint="@string/mem_scan_type"
+                app:endIconMinSize="36dp">
+
+                <com.google.android.material.textfield.MaterialAutoCompleteTextView
+                    android:id="@+id/mem_scan_type"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:minHeight="44dp"
+                    android:ellipsize="end"
+                    android:inputType="none"
+                    android:maxLines="1"
+                    android:paddingTop="8dp"
+                    android:paddingBottom="8dp"
+                    android:singleLine="true"
+                    android:textSize="13sp" />
+
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <!-- Value -->
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/mem_scan_value_layout"
+                style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="5.8"
+                android:hint="@string/mem_scan_value">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/mem_scan_value"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:minHeight="44dp"
+                    android:inputType="number"
+                    android:paddingTop="8dp"
+                    android:paddingBottom="8dp"
+                    android:singleLine="true"
+                    android:textSize="13sp" />
+
+            </com.google.android.material.textfield.TextInputLayout>
+
+        </LinearLayout>
+
+        <com.google.android.material.progressindicator.LinearProgressIndicator
+            android:id="@+id/mem_scan_progress"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:visibility="gone"
+            app:trackCornerRadius="4dp" />
+
+        <com.google.android.material.textview.MaterialTextView
+            android:id="@+id/mem_scan_status"
+            style="@style/TextAppearance.Material3.BodySmall"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textAlignment="viewStart"
+            android:textSize="12sp"
+            tools:text="0 results" />
+
+        <org.citron.citron_emu.features.memory.ui.NestedScrollableHost
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:layout_marginTop="4dp">
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/mem_scan_results"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:clipToPadding="false"
+                android:nestedScrollingEnabled="true"
+                android:overScrollMode="never"
+                tools:listitem="@layout/list_item_scan_result" />
+
+        </org.citron.citron_emu.features.memory.ui.NestedScrollableHost>
+
+    </LinearLayout>
+
+    <!--
+      Built-in keypad for the value field: flush against the panel's sides and bottom, and the
+      bottom two thirds of it. The height is set from code once the panel is laid out.
+    -->
+    <org.citron.citron_emu.features.memory.ui.MemKeypadView
+        android:id="@+id/mem_scan_keypad"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:background="@drawable/mem_keypad_bg"
+        android:padding="6dp"
+        android:visibility="gone"
+        tools:visibility="visible" />
+
+</org.citron.citron_emu.features.memory.ui.TapOutsideFocusLayout>

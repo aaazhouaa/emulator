@@ -3,94 +3,115 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:paddingLeft="0dp"
-    android:paddingTop="12dp"
-    android:paddingRight="12dp"
-    android:paddingBottom="12dp">
+    android:orientation="vertical">
 
+    <!--
+      The card holding the two fields: one third of the panel. Its height, and the height of the
+      two rows inside it, are set from code once the panel size is known.
+    -->
     <LinearLayout
-        android:id="@+id/mem_value_row"
+        android:id="@+id/mem_value_card"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1"
-        android:gravity="center_vertical"
-        android:orientation="horizontal">
+        android:orientation="vertical"
+        android:paddingTop="12dp"
+        android:paddingEnd="12dp"
+        android:paddingBottom="12dp"
+        tools:ignore="RtlSymmetry">
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/mem_value_cancel"
-            style="@style/CitronButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:minWidth="0dp"
-            android:paddingHorizontal="8dp"
-            android:text="@android:string/cancel" />
-
-        <com.google.android.material.textfield.TextInputLayout
-            android:id="@+id/mem_value_layout"
-            style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
+        <LinearLayout
+            android:id="@+id/mem_value_row"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
             android:layout_weight="1"
-            android:hint="@string/mem_freeze_value_title">
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
 
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/mem_value"
-                android:layout_width="match_parent"
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/mem_value_cancel"
+                style="@style/CitronButton"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:gravity="center_vertical"
-                android:inputType="text|textNoSuggestions"
-                android:minHeight="0dp"
-                android:paddingVertical="2dp"
-                android:singleLine="true"
-                android:textSize="13sp" />
+                android:minWidth="0dp"
+                android:paddingHorizontal="8dp"
+                android:text="@android:string/cancel" />
 
-        </com.google.android.material.textfield.TextInputLayout>
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/mem_value_layout"
+                style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:hint="@string/mem_freeze_value_title">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/mem_value"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:inputType="text|textNoSuggestions"
+                    android:minHeight="0dp"
+                    android:paddingVertical="2dp"
+                    android:singleLine="true"
+                    android:textSize="13sp" />
+
+            </com.google.android.material.textfield.TextInputLayout>
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/mem_description_row"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_marginTop="8dp"
+            android:layout_weight="1"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/mem_value_confirm"
+                style="@style/CitronButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="0dp"
+                android:paddingHorizontal="8dp"
+                android:text="@string/mem_confirm" />
+
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/mem_description_layout"
+                style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:hint="@string/mem_freeze_description">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/mem_description"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:inputType="textCapSentences"
+                    android:maxLength="63"
+                    android:minHeight="0dp"
+                    android:paddingVertical="2dp"
+                    android:singleLine="true"
+                    android:textSize="13sp" />
+
+            </com.google.android.material.textfield.TextInputLayout>
+
+        </LinearLayout>
 
     </LinearLayout>
 
-    <LinearLayout
-        android:id="@+id/mem_description_row"
+    <!-- The built-in keypad: everything under the card, flush against the panel's edges. -->
+    <org.citron.citron_emu.features.memory.ui.MemKeypadView
+        android:id="@+id/mem_keypad"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_marginTop="8dp"
         android:layout_weight="1"
-        android:gravity="center_vertical"
-        android:orientation="horizontal">
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/mem_value_confirm"
-            style="@style/CitronButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:minWidth="0dp"
-            android:paddingHorizontal="8dp"
-            android:text="@string/mem_confirm" />
-
-        <com.google.android.material.textfield.TextInputLayout
-            android:id="@+id/mem_description_layout"
-            style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
-            android:layout_weight="1"
-            android:hint="@string/mem_freeze_description">
-
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/mem_description"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="center_vertical"
-                android:inputType="textCapSentences"
-                android:maxLength="63"
-                android:minHeight="0dp"
-                android:paddingVertical="2dp"
-                android:singleLine="true"
-                android:textSize="13sp" />
-
-        </com.google.android.material.textfield.TextInputLayout>
-
-    </LinearLayout>
+        android:background="@drawable/mem_keypad_bg"
+        android:padding="6dp" />
 
 </LinearLayout>

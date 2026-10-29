@@ -36,7 +36,8 @@
     <!--
       The value dialog is positioned over the side panel by its window, so the dialog's own
       background insets have to go: Material applies them to the window and would leave a gap
-      around the dialog. The corners are set to the side panel's 16dp as well.
+      around the dialog. The corners are set to the side panel's 16dp as well. The window now
+      spans the whole panel, so the alert's own background covers it and the keypad sits on it.
     -->
     <style name="ThemeOverlay_Citron_ValueDialog" parent="CitronMaterialDialog">
         <item name="backgroundInsetStart">0dp</item>
@@ -44,6 +45,21 @@
         <item name="backgroundInsetEnd">0dp</item>
         <item name="backgroundInsetBottom">0dp</item>
         <item name="android:dialogCornerRadius">16dp</item>
+    </style>
+
+    <!-- Flat keycap used by the value dialog's built-in keypad. -->
+    <style name="CitronKey" parent="Widget.Material3.Button.OutlinedButton">
+        <item name="android:textColor">@color/citron_primary</item>
+        <item name="android:textSize">16sp</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+        <item name="android:minWidth">0dp</item>
+        <item name="android:minHeight">0dp</item>
+        <item name="android:paddingHorizontal">0dp</item>
+        <item name="rippleColor">@color/citron_inversePrimary</item>
+        <item name="strokeColor">@color/citron_outline</item>
+        <item name="strokeWidth">1dp</item>
+        <item name="cornerRadius">8dp</item>
     </style>
 
     <!-- Left-hand side panel used by the memory editor. -->
