@@ -12,6 +12,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
+import android.view.inputmethod.InputMethodManager
 import android.widget.ArrayAdapter
 import android.widget.Filter
 import android.widget.TextView
@@ -308,6 +309,23 @@ class MemoryEditorFragment : DialogFragment() {
         panel.memScanReset.setOnClickListener { viewModel.clearResults() }
     }
 
+    /**
+     * Hands the panel back to the result list: the value field drops focus and the keyboard
+     * goes away, so the blinking cursor does not sit on top of the scan results.
+     *
+     * Clearing focus alone is not enough on every IME, hence the explicit hide as well.
+     */
+    private fun releaseValueField() {
+        scanBinding.memScanValue.clearFocus()
+        dismissKeyboard(scanBinding.memScanValue)
+    }
+
+    private fun dismissKeyboard(view: View) {
+        val imm = view.context.getSystemService(Context.INPUT_METHOD_SERVICE)
+            as? InputMethodManager ?: return
+        imm.hideSoftInputFromWindow(view.windowToken, 0)
+    }
+
     private fun updateInputType(type: MemValueType) {
         val input = scanBinding.memScanValue
         val targetInputType = when {
@@ -382,6 +400,7 @@ class MemoryEditorFragment : DialogFragment() {
         }
 
         viewModel.startScan(region, type, value, pattern, FLOAT_EPSILON)
+        releaseValueField()
     }
 
     private fun refineScan() {
@@ -395,6 +414,7 @@ class MemoryEditorFragment : DialogFragment() {
         }
         scanBinding.memScanValueLayout.error = null
         viewModel.refine(type, MemCompare.EXACT, value, FLOAT_EPSILON)
+        releaseValueField()
     }
 
     private fun promptAddToTable(address: Long) {
@@ -464,6 +484,7 @@ class MemoryEditorFragment : DialogFragment() {
                 } else {
                     ""
                 }
+                dismissKeyboard(dialogBinding.memValue)
                 dialog.dismiss()
                 onConfirm(value, description)
             }

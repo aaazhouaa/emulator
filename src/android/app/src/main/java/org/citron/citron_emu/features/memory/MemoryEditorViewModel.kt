@@ -158,7 +158,6 @@ class MemoryEditorViewModel(application: Application) : AndroidViewModel(applica
             put("epsilon", epsilon)
         }.toString()
 
-        android.util.Log.d("MemoryEditor", "refine params=$params")
         viewModelScope.launch {
             val result = withContext(Dispatchers.IO) { NativeLibrary.memScanRefine(params) }
             if (result != NativeLibrary.MemScanResult.SUCCESS) {
