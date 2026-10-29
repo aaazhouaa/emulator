@@ -138,6 +138,9 @@ class MemoryEditorFragment : DialogFragment() {
     /** Whether the single value field is asking for the next-scan value. */
     private var refineModeActive = false
 
+    /** Height one field of the value dialog gets, in px; set when the dialog is positioned. */
+    private var valueFieldHeight = 0
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // Left-hand side panel matching the in-game drawer.
@@ -478,6 +481,7 @@ class MemoryEditorFragment : DialogFragment() {
             val value = viewModel.parseInput(type, text)
             if (value == null) {
                 dialogBinding.memValueLayout.error = getString(R.string.mem_invalid_value)
+                applyValueFieldHeight(dialogBinding, hasError = true)
                 return@setOnClickListener
             }
             val description = if (showDescription) {
@@ -496,8 +500,9 @@ class MemoryEditorFragment : DialogFragment() {
 
     /**
      * Puts the value dialog on top of the panel it was opened from: same width, flush against
-     * the panel's top-left corner, and a third of the panel's height. The rows are sized directly
-     * as well, because the window height is not the only thing that decides the dialog's size.
+     * the panel's top-left corner, and a third of the panel's height. The rows and the fields
+     * inside them are sized directly as well, because the window height is not the only thing
+     * that decides the dialog's size.
      */
     private fun positionDialogOnScanPanel(dialog: AlertDialog, dialogBinding: DialogMemValueBinding) {
         val window = dialog.window ?: return
@@ -505,10 +510,11 @@ class MemoryEditorFragment : DialogFragment() {
         val panelLocation = IntArray(2)
         panel.getLocationOnScreen(panelLocation)
 
-        // The panel window is MATCH_PARENT tall, so a third of the screen is a third of the panel.
-        // Measuring the panel itself is not reliable: the page inside the pager is detached
-        // whenever the other page is on screen, and its height reads back as zero.
-        val height = resources.displayMetrics.heightPixels / 3
+        // The panel window is MATCH_PARENT tall, so it normally spans the whole screen. Its own
+        // height still wins when it is laid out: measuring it is only unreliable for the pages
+        // inside the pager, and those are what read back as zero.
+        val panelHeight = panel.height.takeIf { it > 0 } ?: resources.displayMetrics.heightPixels
+        val height = panelHeight / 3
 
         window.setGravity(Gravity.TOP or Gravity.START)
         window.attributes = window.attributes.apply {
@@ -523,8 +529,43 @@ class MemoryEditorFragment : DialogFragment() {
         val density = resources.displayMetrics.density
         val verticalExtras = (12 + 12 + 8) * density
         val rowHeight = ((height - verticalExtras) / 2).toInt().coerceAtLeast(1)
+
+        // Half of the dialog per row, and each outlined box fills its row: the box keeps a slice
+        // of its own space around the text field, so the field starts out a slice short of the row.
+        val minFieldHeight = (MIN_FIELD_HEIGHT_DP * density).toInt()
+        valueFieldHeight = (rowHeight - FIELD_BOX_EXTRA_DP * density).toInt()
+            .coerceAtLeast(minFieldHeight)
         dialogBinding.memValueRow.updateLayoutParams { this.height = rowHeight }
         dialogBinding.memDescriptionRow.updateLayoutParams { this.height = rowHeight }
+        dialogBinding.memDescription.minHeight = valueFieldHeight
+        applyValueFieldHeight(dialogBinding, hasError = false)
+
+        // The slice the box adds is style-dependent, so once the first layout has run the field
+        // takes exactly that slice back: an over-tall box would be clipped by the row instead of
+        // filling it, and a short one would leave a gap.
+        dialogBinding.root.post {
+            val boxOverflow = dialogBinding.memValueLayout.height - rowHeight
+            // A layout that has not run yet reports zero height; measuring it then would "fix" the
+            // field height against a box that does not exist.
+            if (dialogBinding.memValueLayout.height > 0 && boxOverflow != 0) {
+                valueFieldHeight = (valueFieldHeight - boxOverflow).coerceAtLeast(minFieldHeight)
+                dialogBinding.memDescription.minHeight = valueFieldHeight
+                applyValueFieldHeight(dialogBinding, hasError = false)
+            }
+        }
+    }
+
+    /**
+     * Keeps the value field at its full half-height, and only lifts it while the layout shows an
+     * error: the error label sits inside the layout's height and would be clipped otherwise.
+     */
+    private fun applyValueFieldHeight(dialogBinding: DialogMemValueBinding, hasError: Boolean) {
+        val reserve = if (hasError) {
+            (FIELD_ERROR_RESERVE_DP * resources.displayMetrics.density).toInt()
+        } else {
+            0
+        }
+        dialogBinding.memValue.minHeight = (valueFieldHeight - reserve).coerceAtLeast(0)
     }
 
     private fun confirmClearTable() {
@@ -657,6 +698,12 @@ class MemoryEditorFragment : DialogFragment() {
         const val REQUEST_KEY = "MemoryEditorFragment.result"
         private const val FLOAT_EPSILON = 0.001
         private const val WINDOW_WIDTH_RATIO = 0.4f
+
+        // Space the outlined box adds above the text field, plus a small margin so the box never
+        // outgrows the row that holds it.
+        private const val FIELD_BOX_EXTRA_DP = 10f
+        private const val FIELD_ERROR_RESERVE_DP = 28f
+        private const val MIN_FIELD_HEIGHT_DP = 48f
 
         // No arguments: the address table is session-only, so the editor no longer needs the
         // program id it used to key the saved table on.
