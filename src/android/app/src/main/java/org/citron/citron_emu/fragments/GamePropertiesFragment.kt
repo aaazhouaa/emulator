@@ -8,6 +8,7 @@ import android.content.pm.ShortcutInfo
 import android.content.pm.ShortcutManager
 import android.net.Uri
 import android.os.Bundle
+import android.text.InputType
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -32,6 +33,7 @@ import org.citron.citron_emu.NativeLibrary
 import org.citron.citron_emu.R
 import org.citron.citron_emu.CitronApplication
 import org.citron.citron_emu.adapters.GamePropertiesAdapter
+import org.citron.citron_emu.databinding.DialogEditTextBinding
 import org.citron.citron_emu.databinding.FragmentGamePropertiesBinding
 import org.citron.citron_emu.features.settings.model.Settings
 import org.citron.citron_emu.model.DriverViewModel
@@ -62,6 +64,9 @@ class GamePropertiesFragment : Fragment() {
 
     private val args by navArgs<GamePropertiesFragmentArgs>()
 
+    private var customTitle = ""
+    private var needsRescan = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enterTransition = MaterialSharedAxis(MaterialSharedAxis.Y, true)
@@ -80,6 +85,7 @@ class GamePropertiesFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        customTitle = args.game.customTitle
         homeViewModel.setNavigationVisibility(visible = false, animated = true)
         homeViewModel.setStatusBarShadeVisibility(true)
 
@@ -93,7 +99,7 @@ class GamePropertiesFragment : Fragment() {
             viewLifecycleOwner.lifecycleScope.launch {
                 withContext(Dispatchers.IO) {
                     val shortcut = ShortcutInfo.Builder(requireContext(), args.game.title)
-                        .setShortLabel(args.game.title)
+                        .setShortLabel(args.game.displayTitle)
                         .setIcon(
                             GameIconUtils.getShortcutIcon(requireActivity(), args.game)
                                 .toIcon(requireContext())
@@ -106,7 +112,7 @@ class GamePropertiesFragment : Fragment() {
         }
 
         GameIconUtils.loadGameIcon(args.game, binding.imageGameScreen)
-        binding.title.text = args.game.title
+        binding.title.text = args.game.displayTitle
 
         binding.buttonStart.setOnClickListener {
             LaunchGameDialogFragment.newInstance(args.game)
@@ -129,7 +135,11 @@ class GamePropertiesFragment : Fragment() {
 
     override fun onDestroy() {
         super.onDestroy()
-        gamesViewModel.reloadGames(true)
+        // Only something that changed the games themselves is worth a rescan; a rename is
+        // already in the list and the cache by the time we get here.
+        if (needsRescan) {
+            gamesViewModel.reloadGames(true)
+        }
     }
 
     private fun reloadList() {
@@ -146,6 +156,16 @@ class GamePropertiesFragment : Fragment() {
                     val action = GamePropertiesFragmentDirections
                         .actionPerGamePropertiesFragmentToGameInfoFragment(args.game)
                     binding.root.findNavController().navigate(action)
+                }
+            )
+            add(
+                SubmenuProperty(
+                    titleId = R.string.custom_game_name,
+                    descriptionId = R.string.custom_game_name,
+                    iconId = R.drawable.ic_new_label,
+                    titleText = customTitle.ifEmpty { args.game.title }
+                ) {
+                    showCustomNameDialog()
                 }
             )
             add(
@@ -268,7 +288,7 @@ class GamePropertiesFragment : Fragment() {
                             R.string.clear_shader_cache,
                             R.string.clear_shader_cache_description,
                             R.drawable.ic_delete,
-                            {
+                            details = {
                                 if (shaderCacheDir.exists()) {
                                     val bytes = shaderCacheDir.walkTopDown().filter { it.isFile }
                                         .map { it.length() }.sum()
@@ -355,6 +375,40 @@ class GamePropertiesFragment : Fragment() {
                 GridLayoutManager(requireContext(), resources.getInteger(R.integer.grid_columns))
             adapter = GamePropertiesAdapter(viewLifecycleOwner, properties)
         }
+    }
+
+    private fun showCustomNameDialog() {
+        val dialogBinding = DialogEditTextBinding.inflate(layoutInflater)
+        dialogBinding.editText.setText(customTitle)
+        dialogBinding.editText.inputType = InputType.TYPE_CLASS_TEXT
+        dialogBinding.editText.setSelection(dialogBinding.editText.text?.length ?: 0)
+
+        val dialog = MaterialAlertDialogBuilder(requireContext())
+            .setTitle(R.string.custom_game_name)
+            .setView(dialogBinding.root)
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                applyCustomTitle(dialogBinding.editText.text.toString().trim())
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+
+        if (customTitle.isNotEmpty()) {
+            dialog.setNeutralButton(R.string.reset_to_default) { _, _ ->
+                applyCustomTitle("")
+            }
+        }
+
+        dialog.show()
+    }
+
+    private fun applyCustomTitle(newTitle: String) {
+        if (newTitle == customTitle) {
+            return
+        }
+
+        customTitle = newTitle
+        gamesViewModel.setGameCustomTitle(args.game, newTitle)
+        binding.title.text = newTitle.ifEmpty { args.game.title }
+        reloadList()
     }
 
     private fun showInstalledContentRemovalDialog() {
@@ -472,6 +526,7 @@ class GamePropertiesFragment : Fragment() {
                 gamesViewModel.setGames(
                     gamesViewModel.games.value.filterNot { it.path == args.game.path }
                 )
+                needsRescan = true
             }
             gamesViewModel.reloadGames(directoriesChanged = false)
         }

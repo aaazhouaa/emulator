@@ -276,7 +276,7 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
         })
         binding.drawerLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_LOCKED_CLOSED)
         binding.inGameMenu.getHeaderView(0).findViewById<TextView>(R.id.text_game_title).text =
-            game.title
+            game.displayTitle
 
         binding.inGameMenu.menu.findItem(R.id.menu_lock_drawer).apply {
             val lockMode = IntSetting.LOCK_DRAWER.getInt()
@@ -435,7 +435,7 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
         )
 
         GameIconUtils.loadGameIcon(game, binding.loadingImage)
-        binding.loadingTitle.text = game.title
+        binding.loadingTitle.text = game.displayTitle
         binding.loadingTitle.isSelected = true
         binding.loadingText.isSelected = true
 

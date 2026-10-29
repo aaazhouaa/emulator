@@ -63,8 +63,19 @@ class GamePropertiesAdapter(
                 submenuProperty.action.invoke()
             }
 
-            binding.title.setText(submenuProperty.titleId)
-            binding.description.setText(submenuProperty.descriptionId)
+            val titleText = submenuProperty.titleText
+            if (titleText != null) {
+                binding.title.text = titleText
+            } else {
+                binding.title.setText(submenuProperty.titleId)
+            }
+            val descriptionId = submenuProperty.descriptionId
+            if (descriptionId != null) {
+                binding.description.setVisible(true)
+                binding.description.setText(descriptionId)
+            } else {
+                binding.description.setVisible(false)
+            }
             binding.icon.setImageDrawable(
                 ResourcesCompat.getDrawable(
                     binding.icon.context.resources,
@@ -92,7 +103,13 @@ class GamePropertiesAdapter(
             val installableProperty = model as InstallableProperty
 
             binding.title.setText(installableProperty.titleId)
-            binding.description.setText(installableProperty.descriptionId)
+            val descriptionId = installableProperty.descriptionId
+            if (descriptionId != null) {
+                binding.description.setVisible(true)
+                binding.description.setText(descriptionId)
+            } else {
+                binding.description.setVisible(false)
+            }
             binding.icon.setImageDrawable(
                 ResourcesCompat.getDrawable(
                     binding.icon.context.resources,

@@ -79,7 +79,7 @@ class SettingsFragment : Fragment() {
         binding.toolbarSettingsLayout.title = if (args.menuTag == Settings.MenuTag.SECTION_ROOT &&
             args.game != null
         ) {
-            args.game!!.title
+            args.game!!.displayTitle
         } else {
             when (args.menuTag) {
                 Settings.MenuTag.SECTION_INPUT_PLAYER_ONE -> Settings.getPlayerString(1)

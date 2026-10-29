@@ -63,7 +63,7 @@ class GameInfoFragment : Fragment() {
         homeViewModel.setStatusBarShadeVisibility(false)
 
         binding.apply {
-            toolbarInfo.title = args.game.title
+            toolbarInfo.title = args.game.displayTitle
             toolbarInfo.setNavigationOnClickListener {
                 view.findNavController().popBackStack()
             }
@@ -97,13 +97,13 @@ class GameInfoFragment : Fragment() {
 
             buttonCopy.setOnClickListener {
                 val details = """
-                    ${args.game.title}
+                    ${args.game.displayTitle}
                     ${getString(R.string.path)} - $pathString
                     ${getString(R.string.program_id)} - ${args.game.programIdHex}
                     ${getString(R.string.developer)} - ${args.game.developer}
                     ${getString(R.string.version)} - ${args.game.version}
                 """.trimIndent()
-                copyToClipboard(args.game.title, details)
+                copyToClipboard(args.game.displayTitle, details)
             }
 
             buttonVerifyIntegrity.setOnClickListener {

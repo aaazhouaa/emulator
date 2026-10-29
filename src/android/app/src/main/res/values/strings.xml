@@ -567,6 +567,7 @@
     <!-- Game properties -->
     <string name="info">Info</string>
     <string name="info_description">Program ID, developer, version</string>
+    <string name="custom_game_name">Custom name</string>
     <string name="per_game_settings">Per-game settings</string>
     <string name="per_game_settings_description">Edit settings specific to this game</string>
     <string name="launch_options">Launch config</string>

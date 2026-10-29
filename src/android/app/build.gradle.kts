@@ -221,6 +221,9 @@ tasks.register<Delete>("ktlintReset") {
 
 ktlint {
     version.set("1.0.1")
+    filter {
+        exclude("**/*.kts")
+    }
 }
 
 

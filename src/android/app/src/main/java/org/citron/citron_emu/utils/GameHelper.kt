@@ -6,6 +6,7 @@ package org.citron.citron_emu.utils
 import android.content.SharedPreferences
 import android.net.Uri
 import androidx.preference.PreferenceManager
+import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.citron.citron_emu.NativeLibrary
@@ -35,6 +36,46 @@ object GameHelper {
             .putBoolean(KEY_GAMES_STALE, true)
             .apply()
     }
+
+    fun getCustomTitle(path: String): String =
+        PreferenceManager.getDefaultSharedPreferences(CitronApplication.appContext)
+            .getString(customTitleKey(path), "") ?: ""
+
+    fun setCustomTitle(path: String, title: String) {
+        PreferenceManager.getDefaultSharedPreferences(CitronApplication.appContext)
+            .edit()
+            .putString(customTitleKey(path), title)
+            .apply()
+    }
+
+    /**
+     * Rewrites one entry of the cached game list. The cache is what the list shows on the next
+     * start when no rescan is needed, so a title changed outside of a scan has to reach it too.
+     */
+    fun replaceCachedGame(updated: Game) {
+        val preferences =
+            PreferenceManager.getDefaultSharedPreferences(CitronApplication.appContext)
+        val stored = preferences.getStringSet(KEY_GAMES, emptySet())
+        if (stored.isNullOrEmpty()) {
+            return
+        }
+
+        val replaced = stored.map { json ->
+            val cached: Game = try {
+                Json.decodeFromString(json)
+            } catch (e: Exception) {
+                return@map json
+            }
+            if (cached.path == updated.path) {
+                Json.encodeToString(updated)
+            } else {
+                json
+            }
+        }
+        preferences.edit().putStringSet(KEY_GAMES, replaced.toSet()).apply()
+    }
+
+    private fun customTitleKey(path: String) = "${path}_CustomTitle"
 
     /**
      * Returns true once after [markGamesStale], so a change triggers exactly one rescan.
@@ -164,7 +205,8 @@ object GameHelper {
             programId,
             GameMetadata.getDeveloper(filePath),
             GameMetadata.getVersion(filePath, false),
-            GameMetadata.getIsHomebrew(filePath)
+            GameMetadata.getIsHomebrew(filePath),
+            getCustomTitle(filePath)
         )
 
         if (addedToLibrary) {

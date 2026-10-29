@@ -35,17 +35,37 @@
                 app:shapeAppearance="@style/ShapeAppearance.Material3.Corner.Small"
                 tools:src="@drawable/default_icon" />
 
-            <com.google.android.material.textview.MaterialTextView
-                android:id="@+id/text_game_title"
-                style="@style/TextAppearance.Material3.TitleMedium"
+            <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:ellipsize="end"
-                android:maxLines="2"
-                android:textAlignment="viewStart"
-                android:textSize="16sp"
-                tools:text="The Legend of Zelda: Skyward Sword" />
+                android:orientation="vertical">
+
+                <com.google.android.material.textview.MaterialTextView
+                    android:id="@+id/text_game_title"
+                    style="@style/TextAppearance.Material3.TitleMedium"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:ellipsize="end"
+                    android:maxLines="2"
+                    android:textAlignment="viewStart"
+                    android:textSize="16sp"
+                    tools:text="The Legend of Zelda: Skyward Sword" />
+
+                <com.google.android.material.textview.MaterialTextView
+                    android:id="@+id/text_game_subtitle"
+                    style="@style/TextAppearance.Material3.BodySmall"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:textAlignment="viewStart"
+                    android:textColor="?attr/colorOnSurfaceVariant"
+                    android:visibility="gone"
+                    tools:text="Rune Factory 5"
+                    tools:visibility="visible" />
+
+            </LinearLayout>
 
         </LinearLayout>
 

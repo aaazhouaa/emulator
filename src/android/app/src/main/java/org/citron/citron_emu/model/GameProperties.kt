@@ -12,7 +12,7 @@ interface GameProperty {
     val titleId: Int
 
     @get:StringRes
-    val descriptionId: Int
+    val descriptionId: Int?
 
     @get:DrawableRes
     val iconId: Int
@@ -20,8 +20,9 @@ interface GameProperty {
 
 data class SubmenuProperty(
     override val titleId: Int,
-    override val descriptionId: Int,
+    override val descriptionId: Int? = null,
     override val iconId: Int,
+    val titleText: String? = null,
     val details: (() -> String)? = null,
     val detailsFlow: StateFlow<String>? = null,
     val action: () -> Unit
@@ -29,7 +30,7 @@ data class SubmenuProperty(
 
 data class InstallableProperty(
     override val titleId: Int,
-    override val descriptionId: Int,
+    override val descriptionId: Int?,
     override val iconId: Int,
     val install: (() -> Unit)? = null,
     val export: (() -> Unit)? = null

@@ -26,10 +26,26 @@ class Game(
     val programId: String = "",
     val developer: String = "",
     var version: String = "",
-    val isHomebrew: Boolean = false
+    val isHomebrew: Boolean = false,
+    val customTitle: String = ""
 ) : Parcelable {
+    // Native caches this signature in JNI_OnLoad, so it has to keep resolving.
+    constructor(
+        title: String,
+        path: String,
+        programId: String,
+        developer: String,
+        version: String,
+        isHomebrew: Boolean
+    ) : this(title, path, programId, developer, version, isHomebrew, "")
+
     val keyAddedToLibraryTime get() = "${path}_AddedToLibraryTime"
     val keyLastPlayedTime get() = "${path}_LastPlayed"
+
+    val displayTitle: String get() = customTitle.ifEmpty { title }
+
+    fun withCustomTitle(customTitle: String): Game =
+        Game(title, path, programId, developer, version, isHomebrew, customTitle)
 
     val settingsName: String
         get() {
@@ -81,6 +97,7 @@ class Game(
         if (developer != other.developer) return false
         if (version != other.version) return false
         if (isHomebrew != other.isHomebrew) return false
+        if (customTitle != other.customTitle) return false
 
         return true
     }
@@ -92,6 +109,7 @@ class Game(
         result = 31 * result + developer.hashCode()
         result = 31 * result + version.hashCode()
         result = 31 * result + isHomebrew.hashCode()
+        result = 31 * result + customTitle.hashCode()
         return result
     }
 

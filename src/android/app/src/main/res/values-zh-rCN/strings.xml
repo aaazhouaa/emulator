@@ -413,6 +413,7 @@
     <!-- Game properties -->
     <string name="info">信息</string>
     <string name="info_description">游戏 ID、开发者及版本信息</string>
+    <string name="custom_game_name">自定义名称</string>
     <string name="per_game_settings">游戏单独设置</string>
     <string name="per_game_settings_description">编辑此游戏的单独设置项</string>
     <string name="launch_options">载入配置</string>

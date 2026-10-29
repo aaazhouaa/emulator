@@ -27,6 +27,7 @@ import org.citron.citron_emu.databinding.CardGameListBinding
 import org.citron.citron_emu.model.Game
 import org.citron.citron_emu.model.GamesViewModel
 import org.citron.citron_emu.utils.GameIconUtils
+import org.citron.citron_emu.utils.ViewUtils.setVisible
 import org.citron.citron_emu.viewholder.AbstractViewHolder
 
 class GameAdapter(private val activity: AppCompatActivity, private var tilesMode: Boolean = false) :
@@ -70,7 +71,16 @@ class GameAdapter(private val activity: AppCompatActivity, private var tilesMode
             binding.imageGameScreen.scaleType = ImageView.ScaleType.CENTER_CROP
             GameIconUtils.loadGameIcon(model, binding.imageGameScreen)
 
-            binding.textGameTitle.text = model.title.replace("[\\t\\n\\r]+".toRegex(), " ")
+            binding.textGameTitle.text =
+                model.displayTitle.replace("[\\t\\n\\r]+".toRegex(), " ")
+
+            if (model.customTitle.isNotEmpty()) {
+                binding.textGameSubtitle.setVisible(true)
+                binding.textGameSubtitle.text =
+                    model.title.replace("[\\t\\n\\r]+".toRegex(), " ")
+            } else {
+                binding.textGameSubtitle.setVisible(false)
+            }
 
             binding.cardGame.setOnClickListener { onClick(model) }
             binding.cardGame.setOnLongClickListener { onLongClick(model) }
@@ -125,7 +135,7 @@ class GameAdapter(private val activity: AppCompatActivity, private var tilesMode
             withContext(Dispatchers.IO) {
                 val shortcut =
                     ShortcutInfoCompat.Builder(CitronApplication.appContext, game.path)
-                        .setShortLabel(game.title)
+                        .setShortLabel(game.displayTitle)
                         .setIcon(GameIconUtils.getShortcutIcon(activity, game))
                         .setIntent(game.launchIntent)
                         .build()

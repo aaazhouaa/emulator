@@ -10,6 +10,9 @@ import androidx.lifecycle.viewModelScope
 import androidx.preference.PreferenceManager
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -58,7 +61,7 @@ class GamesViewModel : ViewModel() {
     fun setGames(games: List<Game>) {
         val sortedList = games.sortedWith(
             compareBy(
-                { it.title.lowercase(Locale.getDefault()) },
+                { it.displayTitle.lowercase(Locale.getDefault()) },
                 { it.path }
             )
         )
@@ -68,6 +71,19 @@ class GamesViewModel : ViewModel() {
 
     fun setSearchedGames(games: List<Game>) {
         _searchedGames.value = games
+    }
+
+    /**
+     * Applies a custom title without rescanning. A rescan reads every game's metadata over JNI
+     * and takes seconds, which is far too much for a rename that is already known.
+     */
+    fun setGameCustomTitle(game: Game, customTitle: String) {
+        GameHelper.setCustomTitle(game.path, customTitle)
+        val updated = game.withCustomTitle(customTitle)
+        _games.value = _games.value.map { if (it.path == updated.path) updated else it }
+        _searchedGames.value =
+            _searchedGames.value.map { if (it.path == updated.path) updated else it }
+        GameHelper.replaceCachedGame(updated)
     }
 
     fun setShouldSwapData(shouldSwap: Boolean) {
@@ -102,26 +118,44 @@ class GamesViewModel : ViewModel() {
                         PreferenceManager.getDefaultSharedPreferences(CitronApplication.appContext)
                             .getStringSet(GameHelper.KEY_GAMES, emptySet())
                     if (storedGames!!.isNotEmpty()) {
-                        val deserializedGames = mutableSetOf<Game>()
-                        storedGames.forEach {
-                            val game: Game
-                            try {
-                                game = Json.decodeFromString(it)
-                            } catch (e: Exception) {
-                                // We don't care about any errors related to parsing the game cache
-                                return@forEach
-                            }
+                        val deserializedGames = coroutineScope {
+                            storedGames
+                                .map { json ->
+                                    async {
+                                        val game: Game = try {
+                                            Json.decodeFromString(json)
+                                        } catch (e: Exception) {
+                                            // We don't care about any errors related to parsing
+                                            // the game cache
+                                            return@async null
+                                        }
 
-                            val gameExists =
-                                DocumentFile.fromSingleUri(
-                                    CitronApplication.appContext,
-                                    Uri.parse(game.path)
-                                )?.exists()
-                            if (gameExists == true) {
-                                deserializedGames.add(game)
-                            }
+                                        val gameExists =
+                                            DocumentFile.fromSingleUri(
+                                                CitronApplication.appContext,
+                                                Uri.parse(game.path)
+                                            )?.exists()
+                                        if (gameExists == true) {
+                                            game
+                                        } else {
+                                            null
+                                        }
+                                    }
+                                }
+                                .awaitAll()
+                                .filterNotNull()
+                                .toMutableSet()
                         }
-                        setGames(deserializedGames.toList())
+
+                        // A valid cache is worth more than a rescan: the scan re-reads every
+                        // game's metadata over JNI, which is what makes the list slow to show.
+                        // Pull to refresh, adding a folder, and a stale cache all rescan.
+                        if (deserializedGames.isNotEmpty()) {
+                            setGames(deserializedGames.toList())
+                            reloading.set(false)
+                            _isReloading.value = false
+                            return@withContext
+                        }
                     }
                 }
 

@@ -133,8 +133,9 @@ class SearchFragment : Fragment() {
         val searchTerm = binding.searchText.text.toString().lowercase(Locale.getDefault())
         val searchAlgorithm = if (searchTerm.length > 1) Jaccard(2) else JaroWinkler()
         val sortedList: List<Game> = filteredList.mapNotNull { game ->
-            val title = game.title.lowercase(Locale.getDefault())
-            val score = searchAlgorithm.similarity(searchTerm, title)
+            val score = listOf(game.displayTitle, game.title)
+                .map { it.lowercase(Locale.getDefault()) }
+                .maxOf { searchAlgorithm.similarity(searchTerm, it) }
             if (score > 0.03) {
                 ScoredGame(score, game)
             } else {
