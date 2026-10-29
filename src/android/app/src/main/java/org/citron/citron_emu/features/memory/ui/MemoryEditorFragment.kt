@@ -17,6 +17,7 @@ import android.widget.ArrayAdapter
 import android.widget.Filter
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
+import androidx.core.view.updateLayoutParams
 import androidx.core.widget.doAfterTextChanged
 import androidx.fragment.app.DialogFragment
 import androidx.fragment.app.activityViewModels
@@ -423,7 +424,6 @@ class MemoryEditorFragment : DialogFragment() {
         // Seed the value with whatever is in memory right now; the user can change it next.
         val current = viewModel.readValue(address, type)
         showValueDialog(
-            title = getString(R.string.mem_freeze_add_title),
             type = type,
             initialValue = current?.let { formatValue(type, it) } ?: "",
             initialDescription = "",
@@ -435,7 +435,6 @@ class MemoryEditorFragment : DialogFragment() {
 
     private fun promptEditValue(entry: FreezeEntry) {
         showValueDialog(
-            title = entry.description.ifEmpty { getString(R.string.mem_freeze_untitled) },
             type = entry.type,
             initialValue = formatValue(entry.type, entry.value),
             initialDescription = entry.description,
@@ -447,7 +446,6 @@ class MemoryEditorFragment : DialogFragment() {
     }
 
     private fun showValueDialog(
-        title: String,
         type: MemValueType,
         initialValue: String,
         initialDescription: String,
@@ -463,33 +461,70 @@ class MemoryEditorFragment : DialogFragment() {
         dialogBinding.memDescription.setText(initialDescription)
         dialogBinding.memDescriptionLayout.setVisible(visible = showDescription, gone = true)
 
-        val dialog = MaterialAlertDialogBuilder(requireContext())
-            .setTitle(title)
+        val dialog = MaterialAlertDialogBuilder(
+            requireContext(),
+            R.style.ThemeOverlay_Citron_ValueDialog
+        )
             .setView(dialogBinding.root)
-            .setNegativeButton(android.R.string.cancel, null)
-            .setPositiveButton(R.string.mem_confirm, null)
+            .setBackgroundInsetStart(0)
+            .setBackgroundInsetTop(0)
+            .setBackgroundInsetEnd(0)
+            .setBackgroundInsetBottom(0)
             .create()
 
-        dialog.setOnShowListener {
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-                val text = dialogBinding.memValue.text?.toString().orEmpty()
-                val value = viewModel.parseInput(type, text)
-                if (value == null) {
-                    dialogBinding.memValueLayout.error =
-                        getString(R.string.mem_invalid_value)
-                    return@setOnClickListener
-                }
-                val description = if (showDescription) {
-                    dialogBinding.memDescription.text?.toString()?.trim().orEmpty()
-                } else {
-                    ""
-                }
-                dismissKeyboard(dialogBinding.memValue)
-                dialog.dismiss()
-                onConfirm(value, description)
+        dialogBinding.memValueCancel.setOnClickListener { dialog.dismiss() }
+        dialogBinding.memValueConfirm.setOnClickListener {
+            val text = dialogBinding.memValue.text?.toString().orEmpty()
+            val value = viewModel.parseInput(type, text)
+            if (value == null) {
+                dialogBinding.memValueLayout.error = getString(R.string.mem_invalid_value)
+                return@setOnClickListener
             }
+            val description = if (showDescription) {
+                dialogBinding.memDescription.text?.toString()?.trim().orEmpty()
+            } else {
+                ""
+            }
+            dismissKeyboard(dialogBinding.memValue)
+            dialog.dismiss()
+            onConfirm(value, description)
         }
+
         dialog.show()
+        positionDialogOnScanPanel(dialog, dialogBinding)
+    }
+
+    /**
+     * Puts the value dialog on top of the panel it was opened from: same width, flush against
+     * the panel's top-left corner, and a third of the panel's height. The rows are sized directly
+     * as well, because the window height is not the only thing that decides the dialog's size.
+     */
+    private fun positionDialogOnScanPanel(dialog: AlertDialog, dialogBinding: DialogMemValueBinding) {
+        val window = dialog.window ?: return
+        val panel = binding.root
+        val panelLocation = IntArray(2)
+        panel.getLocationOnScreen(panelLocation)
+
+        // The panel window is MATCH_PARENT tall, so a third of the screen is a third of the panel.
+        // Measuring the panel itself is not reliable: the page inside the pager is detached
+        // whenever the other page is on screen, and its height reads back as zero.
+        val height = resources.displayMetrics.heightPixels / 3
+
+        window.setGravity(Gravity.TOP or Gravity.START)
+        window.attributes = window.attributes.apply {
+            x = panelLocation[0]
+            y = panelLocation[1]
+            width = panel.width
+            this.height = height
+        }
+
+        // The window height is not the only thing that decides the dialog's size, so the rows are
+        // sized directly as well: together with the dialog's padding they come to the same height.
+        val density = resources.displayMetrics.density
+        val verticalExtras = (12 + 12 + 8) * density
+        val rowHeight = ((height - verticalExtras) / 2).toInt().coerceAtLeast(1)
+        dialogBinding.memValueRow.updateLayoutParams { this.height = rowHeight }
+        dialogBinding.memDescriptionRow.updateLayoutParams { this.height = rowHeight }
     }
 
     private fun confirmClearTable() {

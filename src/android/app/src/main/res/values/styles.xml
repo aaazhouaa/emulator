@@ -33,6 +33,19 @@
         <item name="rippleColor">@color/citron_inversePrimary</item>
     </style>
 
+    <!--
+      The value dialog is positioned over the side panel by its window, so the dialog's own
+      background insets have to go: Material applies them to the window and would leave a gap
+      around the dialog. The corners are set to the side panel's 16dp as well.
+    -->
+    <style name="ThemeOverlay_Citron_ValueDialog" parent="CitronMaterialDialog">
+        <item name="backgroundInsetStart">0dp</item>
+        <item name="backgroundInsetTop">0dp</item>
+        <item name="backgroundInsetEnd">0dp</item>
+        <item name="backgroundInsetBottom">0dp</item>
+        <item name="android:dialogCornerRadius">16dp</item>
+    </style>
+
     <!-- Left-hand side panel used by the memory editor. -->
     <style name="ThemeOverlay_Citron_SidePanel" parent="ThemeOverlay.Material3.MaterialAlertDialog">
         <item name="android:windowIsFloating">true</item>

@@ -758,7 +758,6 @@
     <string name="mem_freeze_value_title">Value to set</string>
     <string name="mem_freeze_description">Description</string>
     <string name="mem_table_clear">Clear</string>
-    <string name="mem_freeze_add_title">Edit value</string>
     <string name="mem_freeze_clear_confirm">Remove every address from the table?</string>
     <string name="mem_confirm">OK</string>
     <string name="mem_scan_value_pattern">Bytes, hex (?? for wildcard)</string>

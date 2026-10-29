@@ -939,7 +939,6 @@
     <string name="mem_freeze_value_title">要修改的数值</string>
     <string name="mem_freeze_description">描述</string>
     <string name="mem_table_clear">清空</string>
-    <string name="mem_freeze_add_title">修改数值</string>
     <string name="mem_freeze_clear_confirm">移除地址表中的全部地址？</string>
     <string name="mem_confirm">确定</string>
     <string name="mem_scan_value_pattern">字节，十六进制（?? 表示通配）</string>
