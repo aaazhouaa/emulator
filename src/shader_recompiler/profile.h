@@ -46,6 +46,8 @@ struct Profile {
     bool support_fp64_signed_zero_nan_preserve{};
     bool support_explicit_workgroup_layout{};
     bool support_vote{};
+    /// OpGroupNonUniformQuadSwap is available in fragment shaders
+    bool support_fragment_quad_swap{};
     bool support_viewport_index_layer_non_geometry{};
     bool support_viewport_mask{};
     bool support_typeless_image_loads{};
@@ -80,6 +82,7 @@ struct Profile {
     /// architecture. Applying an offset does fix this mismatching rounding behaviour.
     bool need_gather_subpixel_offset{};
 
+    bool reduce_float_precision{};
     /// OpFClamp is broken and OpFMax + OpFMin should be used instead
     bool has_broken_spirv_clamp{};
     /// The Position builtin needs to be wrapped in a struct when used as an input
