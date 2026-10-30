@@ -24,4 +24,18 @@
 
     <!-- Height shared by the address-table row caption and its clear button. -->
     <dimen name="mem_table_row_height">32dp</dimen>
+
+    <!--
+      Caps on how tall the value dialog's field rows and the keypad's key rows may grow. A panel
+      that is taller than a phone's spare height otherwise stretches both out of shape. The values
+      clear a 667dp-tall panel, where the split gives 117dp fields and 97dp keys.
+    -->
+    <dimen name="mem_field_row_max">120dp</dimen>
+    <dimen name="mem_keypad_row_max">100dp</dimen>
+
+    <!-- Padding and gaps the two panes carry, which the row caps have to account for. -->
+    <dimen name="mem_field_pane_padding_top">12dp</dimen>
+    <dimen name="mem_field_pane_padding_bottom">12dp</dimen>
+    <dimen name="mem_field_row_gap">8dp</dimen>
+    <dimen name="mem_keypad_padding">6dp</dimen>
 </resources>

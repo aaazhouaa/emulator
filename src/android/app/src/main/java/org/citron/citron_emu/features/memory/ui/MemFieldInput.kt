@@ -96,4 +96,22 @@ object MemFieldInput {
             as? InputMethodManager ?: return false
         return imm.isAcceptingText
     }
+
+    /**
+     * Reports the system IME's visibility for the window [field] lives in, whenever it changes.
+     *
+     * The IME can be raised or lowered by this app, by the system, or by the user from the
+     * navigation bar, so its state is watched instead of tracked at every site that might change it.
+     */
+    fun observeSystemIme(field: EditText, onChange: (visible: Boolean) -> Unit) {
+        ViewCompat.setOnApplyWindowInsetsListener(field.rootView) { _, insets ->
+            onChange(insets.isVisible(WindowInsetsCompat.Type.ime()))
+            insets
+        }
+        // The listener only fires on a change, so the state as it stands is reported once here.
+        ViewCompat.getRootWindowInsets(field)?.let {
+            onChange(it.isVisible(WindowInsetsCompat.Type.ime()))
+        }
+        field.requestApplyInsets()
+    }
 }

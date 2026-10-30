@@ -339,6 +339,9 @@ class MemoryEditorFragment : DialogFragment() {
                 field.showSoftInputOnFocus = false
             }
         }
+        MemFieldInput.observeSystemIme(field) { visible ->
+            panel.memScanKeypad.setSystemImeVisible(visible)
+        }
 
         field.setOnFocusChangeListener { _, hasFocus ->
             if (hasFocus) {
@@ -361,16 +364,32 @@ class MemoryEditorFragment : DialogFragment() {
     }
 
     /**
-     * Slides the keypad in under the value field. It takes the bottom two thirds of the panel,
+     * Slides the keypad in under the value field. It takes the bottom three fifths of the panel,
      * measured here because the panel has a size only once it is laid out.
      */
     private fun showScanKeypad(panel: ViewMemScanBinding) {
         if (!keypadSupports(currentType())) return
         val panelHeight = binding.root.height
         if (panelHeight > 0) {
-            panel.memScanKeypad.updateLayoutParams { this.height = panelHeight * 2 / 3 }
+            panel.memScanKeypad.updateLayoutParams {
+                this.height = keypadHeight(panelHeight)
+            }
         }
         panel.memScanKeypad.setVisible(visible = true, gone = true)
+    }
+
+    /**
+     * The keypad's share of [panelHeight]: three fifths of it, capped so a tall panel does not
+     * stretch the keys into slabs.
+     */
+    private fun keypadHeight(panelHeight: Int): Int {
+        val density = resources.displayMetrics.density
+        val padding = resources.getDimensionPixelSize(R.dimen.mem_keypad_padding)
+        val rowCap = resources.getDimensionPixelSize(R.dimen.mem_keypad_row_max)
+        val keyMargin = (KEY_MARGIN_DP * density).toInt()
+        // Four key rows, each keeping its margin above and below, between the slab's two paddings.
+        val cappedRows = 4 * (rowCap + 2 * keyMargin) + 2 * padding
+        return (panelHeight * KEYPAD_SHARE).toInt().coerceAtMost(cappedRows)
     }
 
     /** Only digits, a decimal point and a sign can be produced by the built-in keypad. */
@@ -624,6 +643,9 @@ class MemoryEditorFragment : DialogFragment() {
                 valueField.showSoftInputOnFocus = false
             }
         }
+        MemFieldInput.observeSystemIme(valueField) { visible ->
+            dialogBinding.memKeypad.setSystemImeVisible(visible)
+        }
     }
 
     /** Types [label] at the caret of [field], replacing the selection if it has one. */
@@ -639,7 +661,8 @@ class MemoryEditorFragment : DialogFragment() {
     /**
      * Puts the value dialog on top of the panel it was opened from: same width, flush against
      * the panel's top-left corner. The window covers the whole panel so the built-in keypad can
-     * reach the bottom of it; the field card is the top third of that, the keypad the rest.
+     * reach the bottom of it; the field card takes [FIELD_CARD_SHARE] of that and the keypad the
+     * rest, both capped by [fieldCardHeight] and [keypadHeight].
      */
     private fun positionDialogOnScanPanel(dialog: AlertDialog, dialogBinding: DialogMemValueBinding) {
         val window = dialog.window ?: return
@@ -651,7 +674,7 @@ class MemoryEditorFragment : DialogFragment() {
         // height still wins when it is laid out: measuring it is only unreliable for the pages
         // inside the pager, and those are what read back as zero.
         val panelHeight = panel.height.takeIf { it > 0 } ?: resources.displayMetrics.heightPixels
-        val cardHeight = panelHeight / 3
+        val cardHeight = fieldCardHeight(panelHeight)
 
         // The keypad sits at the bottom of the panel and the system IME (raised by the "keyboard"
         // key) draws over it: resizing the window for the IME would squash the card instead.
@@ -669,15 +692,16 @@ class MemoryEditorFragment : DialogFragment() {
         val density = resources.displayMetrics.density
         val verticalExtras = (12 + 12 + 8) * density
         val rowHeight = ((cardHeight - verticalExtras) / 2).toInt().coerceAtLeast(1)
-
         // Half of the card per row, and each outlined box fills its row: the box keeps a slice
         // of its own space around the text field, so the field starts out a slice short of the row.
         val minFieldHeight = (MIN_FIELD_HEIGHT_DP * density).toInt()
+        val maxFieldHeight = resources.getDimensionPixelSize(R.dimen.mem_field_row_max)
         valueFieldHeight = (rowHeight - FIELD_BOX_EXTRA_DP * density).toInt()
-            .coerceAtLeast(minFieldHeight)
+            .coerceIn(minFieldHeight, maxFieldHeight)
         // The alert's own content holder is wrap_content, so the root is told to fill the window.
         dialogBinding.root.updateLayoutParams { this.height = panelHeight }
         dialogBinding.memValueCard.updateLayoutParams { this.height = cardHeight }
+        dialogBinding.memKeypad.updateLayoutParams { this.height = keypadHeight(panelHeight) }
         dialogBinding.memValueRow.updateLayoutParams { this.height = rowHeight }
         dialogBinding.memDescriptionRow.updateLayoutParams { this.height = rowHeight }
         dialogBinding.memDescription.minHeight = valueFieldHeight
@@ -709,6 +733,18 @@ class MemoryEditorFragment : DialogFragment() {
             0
         }
         dialogBinding.memValue.minHeight = (valueFieldHeight - reserve).coerceAtLeast(0)
+    }
+
+    /**
+     * The field card's share of [panelHeight]: two fifths of it, capped so a tall panel does not
+     * stretch the two fields into slabs. Below the cap the card grows with the panel.
+     */
+    private fun fieldCardHeight(panelHeight: Int): Int {
+        val extras = resources.getDimensionPixelSize(R.dimen.mem_field_pane_padding_top) +
+            resources.getDimensionPixelSize(R.dimen.mem_field_pane_padding_bottom) +
+            resources.getDimensionPixelSize(R.dimen.mem_field_row_gap)
+        val rowCap = resources.getDimensionPixelSize(R.dimen.mem_field_row_max)
+        return (panelHeight * FIELD_CARD_SHARE).toInt().coerceAtMost(2 * rowCap + extras)
     }
 
     private fun confirmClearTable() {
@@ -841,6 +877,13 @@ class MemoryEditorFragment : DialogFragment() {
         const val REQUEST_KEY = "MemoryEditorFragment.result"
         private const val FLOAT_EPSILON = 0.001
         private const val WINDOW_WIDTH_RATIO = 0.4f
+
+        /** Share of the panel the field card takes; the keypad takes [KEYPAD_SHARE] under it. */
+        private const val FIELD_CARD_SHARE = 0.4f
+        private const val KEYPAD_SHARE = 0.6f
+
+        /** Margin around each key, which the row cap has to account for. */
+        private const val KEY_MARGIN_DP = 3f
 
         // Space the outlined box adds above the text field, plus a small margin so the box never
         // outgrows the row that holds it.

@@ -29,8 +29,10 @@ class MemKeypadView @JvmOverloads constructor(
     /** Called when the delete key is tapped. */
     var onBackspace: (() -> Unit)? = null
 
-    /** Called when the keyboard key is tapped, which raises the system IME instead. */
+    /** Called when the keyboard key is tapped: it raises the system IME, or lowers it again. */
     var onSystemKeyboard: (() -> Unit)? = null
+
+    private val imeKey: MaterialButton by lazy { findViewById(R.id.mem_keypad_ime) }
 
     init {
         // The layout is a merge, so this view is the container the key rows sit in.
@@ -48,9 +50,17 @@ class MemKeypadView @JvmOverloads constructor(
         findViewById<MaterialButton>(R.id.mem_keypad_backspace).setOnClickListener {
             onBackspace?.invoke()
         }
-        findViewById<MaterialButton>(R.id.mem_keypad_ime).setOnClickListener {
+        imeKey.setOnClickListener {
             onSystemKeyboard?.invoke()
         }
+    }
+
+    /**
+     * Points the keyboard key at what its next tap does: it raises the system IME, or it is already
+     * up and the tap puts it away.
+     */
+    fun setSystemImeVisible(visible: Boolean) {
+        imeKey.setText(if (visible) R.string.mem_keypad_ime_hide else R.string.mem_keypad_ime)
     }
 
     private fun keycaps(): List<MaterialButton> {
