@@ -509,6 +509,7 @@
     <string name="emulation_control_scale">缩放</string>
     <string name="emulation_control_opacity">不透明度</string>
     <string name="emulation_touch_overlay_reset">重置虚拟按键</string>
+    <string name="emulation_touch_overlay_reset_description">要将横屏、竖屏和折叠屏三套按键布局的位置与显示全部恢复为默认值？自定义的位置会被清除，此操作无法撤销。</string>
     <string name="emulation_touch_overlay_edit">编辑虚拟按键</string>
     <string name="emulation_pause">暂停模拟</string>
     <string name="emulation_unpause">继续模拟</string>

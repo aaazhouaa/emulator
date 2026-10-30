@@ -668,6 +668,7 @@
     <string name="emulation_control_scale">Scale</string>
     <string name="emulation_control_opacity">Opacity</string>
     <string name="emulation_touch_overlay_reset">Reset overlay</string>
+    <string name="emulation_touch_overlay_reset_description">Restore the default positions and visibility of all overlay buttons for landscape, portrait and foldable layouts? Custom positions will be lost. This cannot be undone.</string>
     <string name="emulation_touch_overlay_edit">Edit overlay</string>
     <string name="emulation_pause">Pause emulation</string>
     <string name="emulation_unpause">Unpause emulation</string>

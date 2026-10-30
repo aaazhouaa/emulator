@@ -813,30 +813,32 @@ class InputOverlay(context: Context, attrs: AttributeSet?) :
         }
     }
 
+    /**
+     * Restores default visibility and placement for every layout and persists the result.
+     *
+     * Placement is stored per layout, so resetting only the layout that happens to be active
+     * would leave the other two holding whatever was dragged last, and rotating the device
+     * afterwards would bring that stale layout back onto the screen.
+     */
     fun resetLayoutVisibilityAndPlacement() {
-        defaultOverlayPositionByLayout(layout)
-
-        val overlayControlData = NativeConfig.getOverlayControlData()
-        overlayControlData.forEach {
-            it.enabled = OverlayControl.from(it.id)?.defaultVisibility == true
-        }
-        NativeConfig.setOverlayControlData(overlayControlData)
-
-        refreshControls()
-    }
-
-    private fun defaultOverlayPositionByLayout(layout: OverlayLayout) {
         val overlayControlData = NativeConfig.getOverlayControlData()
         for (data in overlayControlData) {
             val defaultControlData = OverlayControl.from(data.id) ?: continue
-            val position = defaultControlData.getDefaultPositionForLayout(layout)
-            when (layout) {
-                OverlayLayout.Landscape -> data.landscapePosition = position
-                OverlayLayout.Portrait -> data.portraitPosition = position
-                OverlayLayout.Foldable -> data.foldablePosition = position
-            }
+            data.enabled = defaultControlData.defaultVisibility
+            data.landscapePosition =
+                defaultControlData.getDefaultPositionForLayout(OverlayLayout.Landscape)
+            data.portraitPosition =
+                defaultControlData.getDefaultPositionForLayout(OverlayLayout.Portrait)
+            data.foldablePosition =
+                defaultControlData.getDefaultPositionForLayout(OverlayLayout.Foldable)
         }
         NativeConfig.setOverlayControlData(overlayControlData)
+        // Save here rather than relying on the caller. Dismissing the options menu also saves, but
+        // that runs before this reset when it is posted to the view, and it would then write the
+        // pre-reset positions back to disk.
+        NativeConfig.saveGlobalConfig()
+
+        refreshControls()
     }
 
     override fun isInEditMode(): Boolean {

@@ -627,11 +627,21 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
     }
 
     private fun resetInputOverlay() {
-        IntSetting.OVERLAY_SCALE.reset()
-        IntSetting.OVERLAY_OPACITY.reset()
-        binding.surfaceInputOverlay.post {
-            binding.surfaceInputOverlay.resetLayoutVisibilityAndPlacement()
-        }
+        MessageDialogFragment.newInstance(
+            activity = requireActivity(),
+            titleId = R.string.emulation_touch_overlay_reset,
+            descriptionId = R.string.emulation_touch_overlay_reset_description,
+            positiveAction = {
+                IntSetting.OVERLAY_SCALE.reset()
+                IntSetting.OVERLAY_OPACITY.reset()
+                // The overlay is reset through a post so the new positions are applied once the
+                // running touch gesture from this dialog has been dispatched.
+                _binding?.surfaceInputOverlay?.let { overlay ->
+                    overlay.post { overlay.resetLayoutVisibilityAndPlacement() }
+                }
+            },
+            negativeAction = {}
+        ).show(parentFragmentManager, MessageDialogFragment.TAG)
     }
 
     private fun updateShowFpsOverlay() {
