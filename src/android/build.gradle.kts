@@ -13,6 +13,23 @@ tasks.register<Delete>("clean") {
     delete(layout.buildDirectory)
 }
 
+// Fail packaging of the release variant when no distribution keystore was supplied.
+// Leaving `release.signingConfig` unset makes AGP emit `-unsigned.apk` and still report
+// BUILD SUCCESSFUL, which is just as easy to ship by accident as the debug-key fallback
+// this replaced.
+allprojects {
+    tasks.matching { it.name == "packageMainlineRelease" || it.name == "packageEaRelease" }
+        .configureEach {
+            doFirst {
+                check(System.getenv("ANDROID_KEYSTORE_FILE") != null) {
+                    "refusing to package a release APK without signing credentials: " +
+                        "ANDROID_KEYSTORE_FILE is not set. Source the signing environment " +
+                        "before invoking Gradle (the variables must be exported)."
+                }
+            }
+        }
+}
+
 buildscript {
     repositories {
         google()

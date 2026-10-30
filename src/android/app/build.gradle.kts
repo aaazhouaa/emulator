@@ -108,13 +108,14 @@ android {
     // Define build types, which are orthogonal to product flavors.
     buildTypes {
 
-        // Signed by release key, allowing for upload to Play Store.
+        // Signed by the distribution keystore, which must be supplied through the
+        // environment. There is deliberately no fallback: falling back to the debug
+        // key produces an APK that installs and runs fine but cannot be distributed,
+        // and nothing in the build output would say so. The failure is raised at
+        // packaging time rather than here so that configuration-only tasks such as
+        // `clean` keep working on a machine without signing credentials.
         release {
-            signingConfig = if (keystoreFile != null) {
-                signingConfigs.getByName("release")
-            } else {
-                signingConfigs.getByName("default")
-            }
+            signingConfig = signingConfigs.findByName("release")
 
             resValue("string", "app_name_suffixed", "citron-neo: The switch fell off")
             isDebuggable = false
@@ -129,6 +130,7 @@ android {
         register("relWithDebInfo") {
             initWith(getByName("release"))
             matchingFallbacks += listOf("release")
+            signingConfig = signingConfigs.getByName("default")
             isDebuggable = true
             isMinifyEnabled = false
 
