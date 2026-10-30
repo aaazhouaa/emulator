@@ -29,14 +29,6 @@ tasks.configureEach {
         }
     }
 }
-
-/**
- * Use the number of seconds/10 since Jan 1 2016 as the versionCode.
- * This lets us upload a new build at most every 10 seconds for the
- * next 680 years.
- */
-val autoVersion = (((System.currentTimeMillis() / 1000) - 1451606400) / 10).toInt()
-
 @Suppress("UnstableApiUsage")
 android {
     namespace = "org.citron.citron_emu"
@@ -70,13 +62,13 @@ android {
         minSdk = 30
         //noinspection OldTargetApi
         targetSdk = 36
-        versionName = getGitVersion()
+        val version = getGitVersion()
+        versionName = version
 
-        versionCode = if (System.getenv("AUTO_VERSIONED") == "true") {
-            autoVersion
-        } else {
-            1
-        }
+        // Derived from the tag, so a new release always outranks the previous one: 0.0.1 is 1,
+        // 0.0.2 is 2. A code that never moved would make every version compare equal at install
+        // time, which hides downgrades and leaves nothing to sort releases by.
+        versionCode = getVersionCode(version)
 
         ndk {
             //noinspection ChromeOsAbiSupport
@@ -263,6 +255,21 @@ fun runGitCommand(command: List<String>): String {
         logger.error("Cannot find git")
         ""
     }
+}
+
+/**
+ * Encodes the version tag as the version code, so that every release outranks the one before it.
+ *
+ * The tag is enough on its own: 0.0.1 becomes 1, 0.0.2 becomes 2. Segment widths are capped so
+ * that a jump in a lower segment cannot overtake the next one up, and a tag that does not carry a
+ * version at all (the dated ones) falls back to 1 rather than producing a code that goes backwards.
+ */
+fun getVersionCode(versionName: String): Int {
+    val parts = versionName.split(".").map { it.toIntOrNull() ?: return 1 }
+    if (parts.isEmpty() || parts.any { it < 0 || it > 999 }) {
+        return 1
+    }
+    return parts.fold(0) { code, segment -> code * 1000 + segment }.coerceAtLeast(1)
 }
 
 fun getGitVersion(): String {
