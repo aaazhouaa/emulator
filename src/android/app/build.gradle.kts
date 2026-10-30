@@ -270,6 +270,9 @@ fun getGitVersion(): String {
         listOf(
             "git",
             "describe",
+            // Without this only annotated tags are considered, and this repository tags releases
+            // with lightweight ones, which describe would skip entirely.
+            "--tags",
             "--always",
             "--long"
         )
