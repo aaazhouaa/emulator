@@ -68,11 +68,11 @@ struct Values {
                                             Settings::Category::Overlay};
     Settings::Setting<bool> show_performance_overlay{linkage, true, "show_performance_overlay",
                                                      Settings::Category::Overlay};
-    Settings::Setting<bool> show_thermal_overlay{linkage, false, "show_thermal_overlay",
+    Settings::Setting<bool> show_thermal_overlay{linkage, true, "show_thermal_overlay",
                                                  Settings::Category::Overlay};
     Settings::Setting<bool> show_ram_meter{linkage, false, "show_ram_meter",
                                            Settings::Category::Overlay};
-    Settings::Setting<bool> show_shader_building_overlay{linkage, true, "show_shader_building_overlay",
+    Settings::Setting<bool> show_shader_building_overlay{linkage, false, "show_shader_building_overlay",
                                                          Settings::Category::Overlay};
     Settings::Setting<bool> show_performance_graph{linkage, false, "show_performance_graph",
                                                    Settings::Category::Overlay};
