@@ -32,6 +32,9 @@ class MemKeypadView @JvmOverloads constructor(
     /** Called when the keyboard key is tapped: it raises the system IME, or lowers it again. */
     var onSystemKeyboard: (() -> Unit)? = null
 
+    /** Called when the collapse key is tapped: the keypad itself is to be put away. */
+    var onCollapse: (() -> Unit)? = null
+
     private val imeKey: MaterialButton by lazy { findViewById(R.id.mem_keypad_ime) }
 
     init {
@@ -52,6 +55,9 @@ class MemKeypadView @JvmOverloads constructor(
         }
         imeKey.setOnClickListener {
             onSystemKeyboard?.invoke()
+        }
+        findViewById<MaterialButton>(R.id.mem_keypad_collapse).setOnClickListener {
+            onCollapse?.invoke()
         }
     }
 

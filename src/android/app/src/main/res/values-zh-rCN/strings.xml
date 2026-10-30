@@ -944,6 +944,7 @@
     <string name="mem_keypad_backspace">删除</string>
     <string name="mem_keypad_ime">键盘</string>
     <string name="mem_keypad_ime_hide">收起</string>
+    <string name="mem_keypad_collapse">收起键盘</string>
     <string name="mem_scan_value_pattern">字节，十六进制（?? 表示通配）</string>
     <string name="mem_scan_value_text">输入要搜索的文本</string>
     <string name="mem_scan_value_float">浮点数</string>

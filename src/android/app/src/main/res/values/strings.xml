@@ -763,6 +763,7 @@
     <string name="mem_keypad_backspace">Delete</string>
     <string name="mem_keypad_ime">Keyboard</string>
     <string name="mem_keypad_ime_hide">Hide</string>
+    <string name="mem_keypad_collapse">Collapse keypad</string>
     <string name="mem_scan_value_pattern">Bytes, hex (?? for wildcard)</string>
     <string name="mem_scan_value_text">Text to search</string>
     <string name="mem_scan_value_float">Floating point value</string>

@@ -342,6 +342,10 @@ class MemoryEditorFragment : DialogFragment() {
         MemFieldInput.observeSystemIme(field) { visible ->
             panel.memScanKeypad.setSystemImeVisible(visible)
         }
+        panel.memScanKeypad.onCollapse = {
+            // Same as tapping elsewhere: the field gives up the focus, which hides the keypad.
+            field.clearFocus()
+        }
 
         field.setOnFocusChangeListener { _, hasFocus ->
             if (hasFocus) {
@@ -596,6 +600,11 @@ class MemoryEditorFragment : DialogFragment() {
 
         dialog.show()
         positionDialogOnScanPanel(dialog, dialogBinding)
+        dialogBinding.memKeypad.onCollapse = {
+            // Collapsing the keypad is the way out of the dialog: the edit is dropped, the same as
+            // cancelling it. The value is not parsed, so an invalid one cannot block the way out.
+            dialog.dismiss()
+        }
         dialog.setOnDismissListener {
             keypadTarget = null
         }
