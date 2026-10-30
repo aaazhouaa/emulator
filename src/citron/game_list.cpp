@@ -22,10 +22,12 @@
 #include <QFutureWatcher>
 #include <QGraphicsDropShadowEffect>
 #include <QGraphicsOpacityEffect>
+#include <QHash>
 #include <QKeyEvent>
 #include <QMenu>
 #include <QMessageBox>
 #include <QMouseEvent>
+#include <QCoreApplication>
 #include <QProcess>
 #include <QProgressDialog>
 #include <QRegularExpression>
@@ -3148,12 +3150,21 @@ void GameList::PopupContextMenu(const QPoint& menu_location) {
 
 #ifdef _WIN32
 namespace {
-// Follows a detached scarletnx.exe through its log files and shows how far it is. citron must not
-// own the process: ScarletNX runs the game in a job object that kills it when scarletnx.exe ends
+// "Run with AOT": ScarletNX extracts, recompiles and plays a dump on its own runtime. Citron
+// starts it and follows it through the progress it reports, and does not own the process:
+// ScarletNX runs the game in a job object that kills it when scarletnx.exe ends
 // (src/common/utilities/process.c), so a child of citron's would take the game down with citron.
-// The lines are the ones ScarletNX's own launcher reads (src/gui/steps.c): "Unpacking ",
-// "Extracting ", "Building hactool", "Recompiling NAME (", "compiled block N/M", "Built " and the
-// game's first line, "ScarletNX - NAME". "compiled block" lines are flushed as they are printed.
+//
+// Progress is read from ScarletNX's printed lines, as its own launcher does (src/gui/steps.c):
+// "Unpacking ", "Extracting ", "Building hactool", "Recompiling NAME (", "compiled block N/M",
+// "Built " and the game's first line, "ScarletNX - NAME".
+struct AotEvent {
+    enum class Kind { None, Unpacking, Extracting, BuildingTool, Recompiling, Block, Built, Launched };
+    Kind kind = Kind::None;
+    int done = 0;
+    int total = 0;
+};
+
 struct AotWatch {
     HANDLE process = nullptr;
     QFile out;
@@ -3170,6 +3181,16 @@ struct AotWatch {
     }
 };
 
+bool AotProcessEnded(const AotWatch& watch) {
+    return !watch.process || WaitForSingleObject(watch.process, 0) == WAIT_OBJECT_0;
+}
+
+void AotStopProcess(const AotWatch& watch) {
+    if (watch.process) {
+        TerminateProcess(watch.process, 1);
+    }
+}
+
 QStringList ReadNewLines(QFile& file, const QString& path, QByteArray& rest) {
     if (!file.isOpen()) {
         file.setFileName(path);
@@ -3179,13 +3200,44 @@ QStringList ReadNewLines(QFile& file, const QString& path, QByteArray& rest) {
     }
     rest += file.readAll();
     QStringList lines;
-    for (qsizetype end; (end = rest.indexOf('\n')) >= 0; rest.remove(0, end + 1)) {
+    while (true) {
+        const qsizetype newline = rest.indexOf('\n');
+        const qsizetype carriage = rest.indexOf('\r');
+        const qsizetype end = newline < 0 ? carriage : carriage < 0 ? newline : qMin(newline, carriage);
+        if (end < 0) {
+            break;
+        }
         const QString line = QString::fromUtf8(rest.left(end)).trimmed();
         if (!line.isEmpty()) {
             lines << line;
         }
+        const char separator = rest.at(end);
+        rest.remove(0, end + 1 + (separator == '\r' && end + 1 < rest.size() && rest.at(end + 1) == '\n'));
     }
     return lines;
+}
+
+AotEvent ParseConsoleLine(const QString& line) {
+    static const QRegularExpression block(QStringLiteral(R"(compiled block (\d+)/(\d+))"));
+    AotEvent event;
+    if (const auto match = block.match(line); match.hasMatch()) {
+        event.kind = AotEvent::Kind::Block;
+        event.done = match.captured(1).toInt();
+        event.total = match.captured(2).toInt();
+    } else if (line.startsWith(QStringLiteral("Unpacking "))) {
+        event.kind = AotEvent::Kind::Unpacking;
+    } else if (line.startsWith(QStringLiteral("Extracting "))) {
+        event.kind = AotEvent::Kind::Extracting;
+    } else if (line.startsWith(QStringLiteral("Building hactool"))) {
+        event.kind = AotEvent::Kind::BuildingTool;
+    } else if (line.startsWith(QStringLiteral("Recompiling "))) {
+        event.kind = AotEvent::Kind::Recompiling;
+    } else if (line.startsWith(QStringLiteral("Built "))) {
+        event.kind = AotEvent::Kind::Built;
+    } else if (line.startsWith(QStringLiteral("ScarletNX - "))) {
+        event.kind = AotEvent::Kind::Launched;
+    }
+    return event;
 }
 
 void WatchScarletNX(GameList* parent, qint64 pid, const QString& game, const QString& out_log,
@@ -3208,17 +3260,17 @@ void WatchScarletNX(GameList* parent, qint64 pid, const QString& game, const QSt
 
     // Stop ends scarletnx.exe; its job object ends the extractor, the recompiler and the game.
     QObject::connect(dialog, &QProgressDialog::canceled, dialog, [watch] {
-        if (watch->process && !watch->launched) {
-            TerminateProcess(watch->process, 1);
+        if (!watch->launched) {
+            AotStopProcess(*watch);
         }
     });
 
     auto* timer = new QTimer(dialog);
     QObject::connect(timer, &QTimer::timeout, dialog, [=] {
-        static const QRegularExpression block(QStringLiteral(R"(compiled block (\d+)/(\d+))"));
+        // the exit is read before the logs: what it printed last is read after
+        const bool exited = AotProcessEnded(*watch);
+        QList<AotEvent> events;
         // stdout first: when both have news, the game's first line (stderr) comes last
-        const bool exited =
-            !watch->process || WaitForSingleObject(watch->process, 0) == WAIT_OBJECT_0;
         QStringList lines = ReadNewLines(watch->out, out_log, watch->out_rest);
         const QStringList errors = ReadNewLines(watch->err, err_log, watch->err_rest);
         for (const QString& line : errors) {
@@ -3231,30 +3283,48 @@ void WatchScarletNX(GameList* parent, qint64 pid, const QString& game, const QSt
         }
         lines << errors;
         for (const QString& line : lines) {
-            if (const auto match = block.match(line); match.hasMatch() && watch->recompiling) {
-                const int done = match.captured(1).toInt();
-                const int total = match.captured(2).toInt();
-                dialog->setRange(0, total);
-                dialog->setValue(done);
-                dialog->setLabelText(
-                    GameList::tr("Recompiling %1\nBlock %2 of %3").arg(game).arg(done).arg(total));
-            } else if (line.startsWith(QStringLiteral("Unpacking "))) {
+            const AotEvent event = ParseConsoleLine(line);
+            if (event.kind != AotEvent::Kind::None) {
+                events << event;
+            }
+        }
+        for (const AotEvent& event : events) {
+            switch (event.kind) {
+            case AotEvent::Kind::Block:
+                if (watch->recompiling) {
+                    dialog->setRange(0, event.total);
+                    dialog->setValue(event.done);
+                    dialog->setLabelText(GameList::tr("Recompiling %1\nBlock %2 of %3")
+                                             .arg(game)
+                                             .arg(event.done)
+                                             .arg(event.total));
+                }
+                break;
+            case AotEvent::Kind::Unpacking:
                 dialog->setLabelText(GameList::tr("Unpacking %1").arg(game));
-            } else if (line.startsWith(QStringLiteral("Extracting "))) {
+                break;
+            case AotEvent::Kind::Extracting:
                 dialog->setLabelText(GameList::tr("Extracting %1").arg(game));
-            } else if (line.startsWith(QStringLiteral("Building hactool"))) {
+                break;
+            case AotEvent::Kind::BuildingTool:
                 dialog->setLabelText(GameList::tr("Building hactool"));
-            } else if (line.startsWith(QStringLiteral("Recompiling "))) {
+                break;
+            case AotEvent::Kind::Recompiling:
                 watch->recompiling = true;
                 dialog->setRange(0, 0);
                 dialog->setLabelText(
                     GameList::tr("Recompiling %1\nFinding the game's code").arg(game));
-            } else if (line.startsWith(QStringLiteral("Built "))) {
+                break;
+            case AotEvent::Kind::Built:
                 watch->recompiling = false;
                 dialog->setRange(0, 0);
                 dialog->setLabelText(GameList::tr("Starting %1").arg(game));
-            } else if (line.startsWith(QStringLiteral("ScarletNX - "))) {
+                break;
+            case AotEvent::Kind::Launched:
                 watch->launched = true;
+                break;
+            case AotEvent::Kind::None:
+                break;
             }
         }
         if (watch->launched) {
@@ -3265,20 +3335,127 @@ void WatchScarletNX(GameList* parent, qint64 pid, const QString& game, const QSt
         if (!exited) {
             return;
         }
-        // scarletnx.exe ended before the game started, or citron cannot follow it
+        // scarletnx ended before the game started, or citron cannot follow it
         timer->stop();
+        QString status;
         DWORD code = 0;
-        const bool have_code = watch->process && GetExitCodeProcess(watch->process, &code);
+        if (watch->process && GetExitCodeProcess(watch->process, &code)) {
+            status = GameList::tr(" (exit status %1)").arg(code);
+        }
         dialog->close();
         QMessageBox::warning(
             parent, GameList::tr("Run with AOT"),
             GameList::tr(
                 "ScarletNX stopped before %1 started%2.\n\n%3\n\nIts output is in %4 and %5.")
-                .arg(game, have_code ? GameList::tr(" (exit status %1)").arg(code) : QString(),
-                     watch->last_errors.join(QLatin1Char('\n')), out_log, err_log));
+                .arg(game, status, watch->last_errors.join(QLatin1Char('\n')), out_log, err_log));
     });
     timer->start(250);
     dialog->show();
+}
+
+// The scarletnx to run: the one the user chose (the "scarletnx_path" setting), else the one
+// CITRON_BUNDLE_SCARLETNX put beside citron, else the user is asked once. Empty if they decline.
+QString ResolveScarletNX(QWidget* parent) {
+    QString exe = QString::fromStdString(UISettings::values.scarletnx_path.GetValue());
+    if (QFileInfo(exe).isFile()) {
+        return exe;
+    }
+#ifdef CITRON_SCARLETNX_ENTRY
+    const QString bundled = QDir(QCoreApplication::applicationDirPath())
+                                .filePath(QString::fromUtf8("scarletnx/" CITRON_SCARLETNX_ENTRY));
+    if (QFileInfo(bundled).isFile()) {
+        return bundled;
+    }
+#endif
+    exe = QFileDialog::getOpenFileName(parent, GameList::tr("Select scarletnx.exe"), QString(),
+                                       GameList::tr("ScarletNX (scarletnx.exe)"));
+    if (!exe.isEmpty()) {
+        UISettings::values.scarletnx_path = exe.toStdString();
+    }
+    return exe;
+}
+
+// Older ScarletNX builds do not accept key paths on dump-play. Check --help once per executable
+// version so they can keep using the key files copied into their working folder.
+bool ScarletNXTakesKeyFlags(const QString& exe) {
+    static QHash<QString, bool> known;
+    const QString id = exe + QLatin1Char('|') +
+                       QString::number(QFileInfo(exe).lastModified().toMSecsSinceEpoch());
+    if (const auto found = known.constFind(id); found != known.constEnd()) {
+        return found.value();
+    }
+    QProcess help;
+    help.setProgram(exe);
+    help.setArguments({QStringLiteral("--help")});
+    help.start();
+    bool takes = false;
+    if (help.waitForFinished(5000)) {
+        const QString output = QString::fromUtf8(help.readAllStandardOutput());
+        takes = output.contains(QStringLiteral("--title-keys"));
+    } else {
+        help.kill();
+        help.waitForFinished(1000);
+    }
+    known.insert(id, takes);
+    return takes;
+}
+
+void RunWithAot(GameList* parent, const QString& path) {
+    const QString exe = ResolveScarletNX(parent);
+    if (exe.isEmpty()) {
+        return;
+    }
+    // ScarletNX keeps work/ and games/ in its working directory when run from a zip, so use a
+    // folder of Citron's own. Current builds take Citron's keys as command-line options; older
+    // builds find copies in their working folder.
+    const auto work_dir = Common::FS::GetCitronPath(Common::FS::CitronPath::CitronDir) / "scarletnx";
+    const auto keys_dir = Common::FS::GetCitronPath(Common::FS::CitronPath::KeysDir);
+    const QString work = QString::fromStdString(Common::FS::PathToUTF8String(work_dir));
+    std::error_code ec;
+    std::filesystem::create_directories(work_dir, ec);
+    const bool key_flags = ScarletNXTakesKeyFlags(exe);
+    QStringList arguments;
+    struct KeyFile {
+        const char* name;
+        const char* flag;
+    };
+    for (const KeyFile& key : {KeyFile{"prod.keys", "--keys"}, KeyFile{"title.keys", "--title-keys"}}) {
+        if (ec || !std::filesystem::is_regular_file(keys_dir / key.name)) {
+            continue;
+        }
+        if (key_flags) {
+            arguments << QString::fromLatin1(key.flag)
+                      << QDir::toNativeSeparators(QString::fromStdString(
+                             Common::FS::PathToUTF8String(keys_dir / key.name)));
+        } else {
+            std::filesystem::copy_file(keys_dir / key.name, work_dir / key.name,
+                                       std::filesystem::copy_options::overwrite_existing, ec);
+        }
+    }
+    if (ec) {
+        QMessageBox::warning(parent, GameList::tr("Run with AOT"),
+                             GameList::tr("Could not copy the key files to %1: %2")
+                                 .arg(work, QString::fromStdString(ec.message())));
+        return;
+    }
+    const QDir dir(work);
+    const QString out_log = dir.filePath(QStringLiteral("scarletnx.log"));
+    const QString err_log = dir.filePath(QStringLiteral("scarletnx-errors.log"));
+    // It is a GUI program, so its output goes to log files in that folder.
+    QProcess process;
+    process.setProgram(exe);
+    arguments << path;
+    process.setArguments(arguments);
+    process.setWorkingDirectory(work);
+    process.setStandardOutputFile(out_log);
+    process.setStandardErrorFile(err_log);
+    qint64 pid = 0;
+    if (!process.startDetached(&pid)) {
+        QMessageBox::warning(parent, GameList::tr("Run with AOT"),
+                             GameList::tr("Could not start %1.").arg(exe));
+        return;
+    }
+    WatchScarletNX(parent, pid, QFileInfo(path).completeBaseName(), out_log, err_log);
 }
 } // namespace
 #endif
@@ -3704,6 +3881,16 @@ void GameList::AddGamePopup(QMenu& context_menu, const QModelIndex& index, u64 p
             process.setProgram(exe);
             process.setArguments({path});
             process.setWorkingDirectory(work);
+            // ScarletNX's Windows runtime only tracks which guest pages were written when SNX_WW
+            // is set (scarletnx/ScarletNX#234 makes that the default). Without it, its GPU caches
+            // check textures and render targets by content each time (Super Mario Odyssey: about
+            // 15 FPS without it, 34 with it). The game is started by scarletnx.exe and inherits
+            // this environment. SNX_NO_WW, ScarletNX's switch to turn tracking off, is respected.
+            QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+            if (!env.contains(QStringLiteral("SNX_NO_WW"))) {
+                env.insert(QStringLiteral("SNX_WW"), QStringLiteral("1"));
+            }
+            process.setProcessEnvironment(env);
             const QString out_log = dir.filePath(QStringLiteral("scarletnx.log"));
             const QString err_log = dir.filePath(QStringLiteral("scarletnx-errors.log"));
             process.setStandardOutputFile(out_log);
