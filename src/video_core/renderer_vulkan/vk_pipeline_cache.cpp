@@ -446,6 +446,9 @@ PipelineCache::PipelineCache(Tegra::MaxwellDeviceMemoryManager& device_memory_,
             float_control.shaderSignedZeroInfNanPreserveFloat64 != VK_FALSE,
         .support_explicit_workgroup_layout = device.IsKhrWorkgroupMemoryExplicitLayoutSupported(),
         .support_vote = device.IsSubgroupFeatureSupported(VK_SUBGROUP_FEATURE_VOTE_BIT),
+        .support_fragment_quad_swap =
+            device.IsSubgroupFeatureSupported(VK_SUBGROUP_FEATURE_QUAD_BIT) &&
+            device.IsSubgroupSupportedInStage(VK_SHADER_STAGE_FRAGMENT_BIT),
         .support_viewport_index_layer_non_geometry =
             device.IsExtShaderViewportIndexLayerSupported(),
         .support_viewport_mask = device.IsNvViewportArray2Supported(),
@@ -472,6 +475,7 @@ PipelineCache::PipelineCache(Tegra::MaxwellDeviceMemoryManager& device_memory_,
                                        driver_id == VK_DRIVER_ID_INTEL_PROPRIETARY_WINDOWS ||
                                        driver_id == VK_DRIVER_ID_INTEL_OPEN_SOURCE_MESA,
 
+        .reduce_float_precision = driver_id == VK_DRIVER_ID_MOLTENVK,
         .has_broken_spirv_clamp = driver_id == VK_DRIVER_ID_INTEL_PROPRIETARY_WINDOWS,
         .has_broken_spirv_position_input = driver_id == VK_DRIVER_ID_QUALCOMM_PROPRIETARY,
         .has_broken_unsigned_image_offsets = false,
