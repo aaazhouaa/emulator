@@ -3,15 +3,28 @@
 
 #pragma once
 
-#define __ASSEMBLY__
+// Shared with arm_nce.s: no kernel uapi headers (their sigset_t conflicts with libc's).
+// Values are stable arm64 Linux ABI; checked against libc below when compiled as C++.
 
-#include <asm-generic/signal.h>
-#include <asm-generic/unistd.h>
+#define ReturnToRunCodeByExceptionLevelChangeSignal 12 /* SIGUSR2 */
+#define BreakFromRunCodeSignal 23                      /* SIGURG */
+#define GuestAccessFaultSignal 11                      /* SIGSEGV */
+#define GuestAlignmentFaultSignal 7                    /* SIGBUS */
 
-#define ReturnToRunCodeByExceptionLevelChangeSignal SIGUSR2
-#define BreakFromRunCodeSignal SIGURG
-#define GuestAccessFaultSignal SIGSEGV
-#define GuestAlignmentFaultSignal SIGBUS
+#ifdef __ASSEMBLER__
+#define __NR_tkill 130
+#else
+#include <csignal>
+#include <sys/syscall.h>
+
+static_assert(ReturnToRunCodeByExceptionLevelChangeSignal == SIGUSR2);
+static_assert(BreakFromRunCodeSignal == SIGURG);
+static_assert(GuestAccessFaultSignal == SIGSEGV);
+static_assert(GuestAlignmentFaultSignal == SIGBUS);
+#ifdef __aarch64__
+static_assert(__NR_tkill == 130);
+#endif
+#endif
 
 #define GuestContextSp 0xF8
 #define GuestContextHostContext 0x320

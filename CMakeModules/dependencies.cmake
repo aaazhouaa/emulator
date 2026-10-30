@@ -701,6 +701,73 @@ if (CITRON_ENABLE_TRACY AND NOT TARGET Tracy::TracyClient)
 endif()
 
 
+# ── ScarletNX (optional prebuilt tool) ────────────────────────────────────────
+# "Run with AOT" (src/citron/game_list.cpp) runs a dump through ScarletNX, a
+# separate program: Clang + LLVM + SDL3, GPL-3.0-or-later, its own data folder.
+# It is not built here.  Linking it would drag a second FFmpeg/OpenSSL/SDL3 tree
+# into citron, and its Clang-only build is not what every citron CI path uses.
+# Instead a pinned prebuilt release of scarletnx/nightly is downloaded (like CPM
+# itself: pinned to a tag and SHA-256, once, into CPM_SOURCE_CACHE), unpacked in
+# the build tree, and copied next to the citron binary by src/citron/CMakeLists.txt.
+#
+# Bumping: change CITRON_SCARLETNX_TAG and the hash together.  Take the hash
+# from the release asset's digest (or a download checked by hand), never from
+# what the next configure happens to fetch.
+#   https://github.com/scarletnx/nightly/releases
+if (CITRON_BUNDLE_SCARLETNX)
+    set(CITRON_SCARLETNX_TAG "nightly-2026-10-22-dc5b7ca" CACHE STRING
+        "scarletnx/nightly release tag to bundle")
+    set(CITRON_SCARLETNX_WINDOWS_SHA256
+        "b78a9552f759e610ec80ef22cdcc82324d614af13c0429241ed5e095cf87843d" CACHE STRING
+        "SHA-256 of ScarletNX-windows-x86_64.zip at CITRON_SCARLETNX_TAG")
+
+    set(_snx_asset "")
+    if (WIN32 AND NOT CMAKE_SYSTEM_PROCESSOR MATCHES "[Aa][Rr][Mm]|[Aa][Aa][Rr][Cc][Hh]64")
+        set(_snx_asset "ScarletNX-windows-x86_64.zip")
+        set(_snx_hash "${CITRON_SCARLETNX_WINDOWS_SHA256}")
+        set(_snx_entry "bin/scarletnx.exe")
+    endif()
+
+    if (NOT _snx_asset)
+        message(WARNING "[ScarletNX] Only a Windows x86_64 prebuilt is bundled, not ${CMAKE_SYSTEM_NAME}/${CMAKE_SYSTEM_PROCESSOR}; CITRON_BUNDLE_SCARLETNX ignored")
+    else()
+        set(_snx_cache "${CPM_SOURCE_CACHE}/scarletnx/${CITRON_SCARLETNX_TAG}")
+        set(_snx_file  "${_snx_cache}/${_snx_asset}")
+        set(_snx_have "")
+        if (EXISTS "${_snx_file}")
+            file(SHA256 "${_snx_file}" _snx_have)
+        endif()
+        if (NOT _snx_have STREQUAL _snx_hash)
+            message(STATUS "[ScarletNX] Downloading ${_snx_asset} (${CITRON_SCARLETNX_TAG})")
+            # to a .part file renamed once checked: a broken download must not be left where the next configure trusts it
+            file(DOWNLOAD
+                "https://github.com/scarletnx/nightly/releases/download/${CITRON_SCARLETNX_TAG}/${_snx_asset}"
+                "${_snx_file}.part" EXPECTED_HASH SHA256=${_snx_hash} SHOW_PROGRESS)
+            file(RENAME "${_snx_file}.part" "${_snx_file}")
+        endif()
+
+        set(_snx_out   "${CMAKE_BINARY_DIR}/scarletnx-bundle")
+        set(_snx_stamp "${_snx_out}/.citron-bundle-stamp")
+        set(_snx_want  "${CITRON_SCARLETNX_TAG} ${_snx_hash}")
+        set(_snx_got   "")
+        if (EXISTS "${_snx_stamp}")
+            file(READ "${_snx_stamp}" _snx_got)
+        endif()
+        if (NOT _snx_got STREQUAL _snx_want)
+            file(REMOVE_RECURSE "${_snx_out}")
+            file(MAKE_DIRECTORY "${_snx_out}")
+            file(ARCHIVE_EXTRACT INPUT "${_snx_file}" DESTINATION "${_snx_out}")
+            file(WRITE "${_snx_stamp}" "${_snx_want}")
+        endif()
+
+        set(CITRON_SCARLETNX_BUNDLE_DIR "${_snx_out}" CACHE INTERNAL "")
+        set(CITRON_SCARLETNX_BUNDLE_ID "${_snx_want}" CACHE INTERNAL "")
+        set(CITRON_SCARLETNX_ENTRY "${_snx_entry}" CACHE INTERNAL "")
+        message(STATUS "[ScarletNX] Bundling ${CITRON_SCARLETNX_TAG} (${_snx_entry})")
+    endif()
+    unset(_snx_asset)
+endif()
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # Qt
 # ═══════════════════════════════════════════════════════════════════════════════

@@ -630,6 +630,19 @@ if(UNIX AND NOT APPLE)
     install(TARGETS citron)
 endif()
 
+# ScarletNX, bundled by CITRON_BUNDLE_SCARLETNX (CMakeModules/dependencies.cmake): copied to
+# <citron>/scarletnx/, where "Run with AOT" looks for CITRON_SCARLETNX_ENTRY before asking.
+if (CITRON_SCARLETNX_BUNDLE_DIR)
+    target_compile_definitions(citron PRIVATE CITRON_SCARLETNX_ENTRY="${CITRON_SCARLETNX_ENTRY}")
+    add_custom_command(TARGET citron POST_BUILD
+        COMMAND ${CMAKE_COMMAND}
+            -DSRC=${CITRON_SCARLETNX_BUNDLE_DIR}
+            -DDST=$<TARGET_FILE_DIR:citron>/scarletnx
+            "-DID=${CITRON_SCARLETNX_BUNDLE_ID}"
+            -P ${PROJECT_SOURCE_DIR}/CMakeModules/CopyScarletNX.cmake
+        COMMENT "Bundling ScarletNX next to citron")
+endif()
+
 if (WIN32 AND QT_VERSION VERSION_GREATER_EQUAL 6)
     set(CITRON_EXE_DIR "$<TARGET_FILE_DIR:citron>")
 
