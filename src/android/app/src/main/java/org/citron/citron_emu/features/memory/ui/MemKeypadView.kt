@@ -37,6 +37,9 @@ class MemKeypadView @JvmOverloads constructor(
         orientation = HORIZONTAL
         isBaselineAligned = false
         LayoutInflater.from(context).inflate(R.layout.view_mem_keypad, this, true)
+        // Tapping a key must not move the focus: the field keeps its caret, and the system IME, if
+        // it is up, stays up while the keys are used.
+        descendantFocusability = FOCUS_BLOCK_DESCENDANTS
 
         for (key in keycaps()) {
             val label = key.tag as? String ?: continue

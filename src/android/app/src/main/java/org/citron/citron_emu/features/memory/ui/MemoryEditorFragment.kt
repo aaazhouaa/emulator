@@ -145,9 +145,6 @@ class MemoryEditorFragment : DialogFragment() {
     /** The field the built-in keypad types into; the value field unless the description has focus. */
     private var keypadTarget: EditText? = null
 
-    /** The value field of the open value dialog, which never raises the system IME by itself. */
-    private var keypadValueField: EditText? = null
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // Left-hand side panel matching the in-game drawer.
@@ -582,7 +579,6 @@ class MemoryEditorFragment : DialogFragment() {
         positionDialogOnScanPanel(dialog, dialogBinding)
         dialog.setOnDismissListener {
             keypadTarget = null
-            keypadValueField = null
         }
     }
 
@@ -601,7 +597,6 @@ class MemoryEditorFragment : DialogFragment() {
         // The value field types through the keypad, so focus alone must not raise the system IME.
         valueField.showSoftInputOnFocus = false
         keypadTarget = valueField
-        keypadValueField = valueField
 
         valueField.setOnFocusChangeListener { _, hasFocus ->
             if (hasFocus) {
@@ -633,25 +628,12 @@ class MemoryEditorFragment : DialogFragment() {
 
     /** Types [label] at the caret of [field], replacing the selection if it has one. */
     private fun insertIntoField(field: EditText, label: String) {
-        takeBackFromSystemIme(field)
         MemFieldInput.insert(field, label)
     }
 
     /** Deletes the selection of [field], or the character before the caret when there is none. */
     private fun deleteFromField(field: EditText) {
-        takeBackFromSystemIme(field)
         MemFieldInput.delete(field)
-    }
-
-    /**
-     * Keypad input means the user is done with the system IME, which the "keyboard" key may have
-     * opened over the keypad. The field goes back to keypad-only until the key asks for it again.
-     */
-    private fun takeBackFromSystemIme(field: EditText) {
-        val scanValue = _scanBinding?.memScanValue
-        if (field !== keypadValueField && field !== scanValue) return
-        MemFieldInput.hideSystemIme(field)
-        field.showSoftInputOnFocus = false
     }
 
     /**
