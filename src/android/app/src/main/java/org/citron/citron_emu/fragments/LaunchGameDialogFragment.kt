@@ -7,10 +7,9 @@ import android.app.Dialog
 import android.content.DialogInterface
 import android.os.Bundle
 import androidx.fragment.app.DialogFragment
-import androidx.navigation.fragment.findNavController
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import org.citron.citron_emu.HomeNavigationDirections
 import org.citron.citron_emu.R
+import org.citron.citron_emu.activities.EmulationActivity
 import org.citron.citron_emu.model.Game
 import org.citron.citron_emu.utils.SerializableHelper.parcelable
 
@@ -28,9 +27,11 @@ class LaunchGameDialogFragment : DialogFragment() {
         return MaterialAlertDialogBuilder(requireContext())
             .setTitle(R.string.launch_options)
             .setPositiveButton(android.R.string.ok) { _: DialogInterface, _: Int ->
-                val action = HomeNavigationDirections
-                    .actionGlobalEmulationActivity(game, selectedItem != 0)
-                requireParentFragment().findNavController().navigate(action)
+                EmulationActivity.launchInOwnTask(
+                    requireActivity(),
+                    requireNotNull(game),
+                    custom = selectedItem != 0
+                )
             }
             .setSingleChoiceItems(launchOptions, 1) { _: DialogInterface, i: Int ->
                 selectedItem = i

@@ -9,9 +9,9 @@ import android.widget.Toast
 import androidx.core.content.res.ResourcesCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.navigation.findNavController
-import org.citron.citron_emu.HomeNavigationDirections
 import org.citron.citron_emu.NativeLibrary
 import org.citron.citron_emu.R
+import org.citron.citron_emu.activities.EmulationActivity
 import org.citron.citron_emu.CitronApplication
 import org.citron.citron_emu.databinding.CardSimpleOutlinedBinding
 import org.citron.citron_emu.model.Applet
@@ -67,8 +67,7 @@ class AppletAdapter(val activity: FragmentActivity, applets: List<Applet>) :
                 title = CitronApplication.appContext.getString(applet.titleId),
                 path = appletPath
             )
-            val action = HomeNavigationDirections.actionGlobalEmulationActivity(appletGame)
-            binding.root.findNavController().navigate(action)
+            EmulationActivity.launchInOwnTask(activity, appletGame)
         }
     }
 }

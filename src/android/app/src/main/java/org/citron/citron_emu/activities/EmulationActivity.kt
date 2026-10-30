@@ -5,6 +5,7 @@
 package org.citron.citron_emu.activities
 
 import android.annotation.SuppressLint
+import android.app.Activity
 import android.app.PendingIntent
 import android.app.PictureInPictureParams
 import android.app.RemoteAction
@@ -664,12 +665,38 @@ class EmulationActivity : AppCompatActivity(), SensorEventListener {
     companion object {
         const val EXTRA_SELECTED_GAME = "SelectedGame"
         private const val EXTRA_MOVED_TO_MAIN_SCREEN = "MovedToMainScreen"
+        // Names of the emulation_navigation arguments the activity passes on to its graph.
+        private const val ARG_GAME = "game"
+        private const val ARG_CUSTOM = "custom"
         private val MIN_PICTURE_IN_PICTURE_ASPECT_RATIO = Rational(100, 239)
         private val MAX_PICTURE_IN_PICTURE_ASPECT_RATIO = Rational(239, 100)
 
         fun launch(activity: AppCompatActivity, game: Game) {
             val launcher = Intent(activity, EmulationActivity::class.java)
             launcher.putExtra(EXTRA_SELECTED_GAME, game)
+            activity.startActivity(launcher)
+        }
+
+        /**
+         * Starts a game in its own task.
+         *
+         * The library activity is singleTask, so sharing a task with it means tapping the
+         * launcher icon clears everything above it - including a game that is still running. A
+         * separate task, which the manifest affinity only applies to when the intent also carries
+         * NEW_TASK, keeps the session alive.
+         *
+         * The extras mirror the navigation arguments of the emulation graph, since the activity
+         * hands [Intent.getExtras] to it.
+         */
+        fun launchInOwnTask(activity: Activity, game: Game, custom: Boolean = false) {
+            val launcher = Intent(activity, EmulationActivity::class.java).apply {
+                // A distinct task keeps the library's singleTask launch from clearing the game.
+                // No SINGLE_TOP: a repeat request should boot the title that was asked for, not
+                // hand the intent to whatever the running window happens to show.
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                putExtra(ARG_GAME, game)
+                putExtra(ARG_CUSTOM, custom)
+            }
             activity.startActivity(launcher)
         }
 

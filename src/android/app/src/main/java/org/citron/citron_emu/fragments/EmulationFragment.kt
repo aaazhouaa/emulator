@@ -539,15 +539,21 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
     }
 
     private fun startEmulation(programIndex: Int = 0) {
-        if (!NativeLibrary.isRunning() && !NativeLibrary.isPaused()) {
-            if (!DirectoryInitialization.areDirectoriesReady) {
-                DirectoryInitialization.start()
-            }
-
-            updateScreenLayout()
-
-            emulationState.run(emulationActivity!!.isActivityRecreated, programIndex)
+        // Guard on this fragment's own session. NativeLibrary.isRunning() also stays true while an
+        // earlier session tears down, and refusing to start on top of that is what left the
+        // loading screen up forever: the new session waits for the old one to finish inside
+        // NativeLibrary.run(), so there is nothing to refuse.
+        if (emulationState.isRunning || emulationState.isPaused || emulationState.isStopping) {
+            return
         }
+
+        if (!DirectoryInitialization.areDirectoriesReady) {
+            DirectoryInitialization.start()
+        }
+
+        updateScreenLayout()
+
+        emulationState.run(emulationActivity!!.isActivityRecreated, programIndex)
     }
 
     private fun updateMultiplayerRoomMenuVisibility(
@@ -600,6 +606,23 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
             emulationState.pause()
         }
         super.onPause()
+    }
+
+    override fun onDestroy() {
+        // A session left paused or running keeps NativeLibrary.isRunning() true, and the next
+        // launch then waits on the session lock instead of booting, which leaves the loading
+        // screen up until the app is restarted. Only end it when this activity is going away for
+        // good: a configuration change recreates the fragment and must resume the session.
+        val activity = activity
+        val goingAway = activity != null && activity.isFinishing &&
+            !activity.isChangingConfigurations
+        if (goingAway && ::emulationState.isInitialized &&
+            (emulationState.isRunning || emulationState.isPaused)
+        ) {
+            Log.debug("[EmulationFragment] Stopping emulation on destroy.")
+            emulationState.stop()
+        }
+        super.onDestroy()
     }
 
     override fun onDestroyView() {
@@ -1622,6 +1645,10 @@ class EmulationFragment : Fragment(), SurfaceHolder.Callback {
         @get:Synchronized
         val isRunning: Boolean
             get() = state == State.RUNNING
+
+        @get:Synchronized
+        val isStopping: Boolean
+            get() = state == State.STOPPING
 
         @Synchronized
         fun stop() {

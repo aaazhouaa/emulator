@@ -372,6 +372,12 @@ object NativeLibrary {
         sEmulationActivity.clear()
     }
 
+    /**
+     * True while a game window is still up. Used to send the launcher icon back to the running
+     * game instead of the library.
+     */
+    fun isGameRunning(): Boolean = isRunning() && sEmulationActivity.get() != null
+
     @Keep
     @JvmStatic
     fun onEmulationStarted() {

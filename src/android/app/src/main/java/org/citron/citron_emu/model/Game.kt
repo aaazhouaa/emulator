@@ -83,6 +83,10 @@ class Game(
         get() = Intent(CitronApplication.appContext, EmulationActivity::class.java).apply {
             action = Intent.ACTION_VIEW
             data = Uri.parse(path)
+            // The library activity is singleTask, so a game started without NEW_TASK would join
+            // its task and be cleared whenever the launcher icon brings that task forward. This
+            // is what a pinned shortcut starts, so it needs the flag too.
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
 
     override fun equals(other: Any?): Boolean {

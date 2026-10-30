@@ -7,10 +7,9 @@ import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.core.content.res.ResourcesCompat
 import androidx.fragment.app.Fragment
-import androidx.navigation.fragment.findNavController
-import org.citron.citron_emu.HomeNavigationDirections
 import org.citron.citron_emu.NativeLibrary
 import org.citron.citron_emu.R
+import org.citron.citron_emu.activities.EmulationActivity
 import org.citron.citron_emu.CitronApplication
 import org.citron.citron_emu.databinding.DialogListItemBinding
 import org.citron.citron_emu.model.CabinetMode
@@ -52,8 +51,7 @@ class CabinetLauncherDialogAdapter(val fragment: Fragment) :
                 title = CitronApplication.appContext.getString(R.string.cabinet_applet),
                 path = appletPath
             )
-            val action = HomeNavigationDirections.actionGlobalEmulationActivity(appletGame)
-            fragment.findNavController().navigate(action)
+            EmulationActivity.launchInOwnTask(fragment.requireActivity(), appletGame)
         }
     }
 }

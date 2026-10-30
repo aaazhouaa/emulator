@@ -72,6 +72,7 @@ SPDX-License-Identifier: GPL-3.0-or-later
             android:name="org.citron.citron_emu.activities.EmulationActivity"
             android:theme="@style/Theme.Citron.Main"
             android:launchMode="singleTop"
+            android:taskAffinity="org.citron.citron_emu.game"
             android:supportsPictureInPicture="true"
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|uiMode"
             android:exported="true"

@@ -22,6 +22,7 @@ import kotlinx.coroutines.withContext
 import org.citron.citron_emu.CitronApplication
 import org.citron.citron_emu.HomeNavigationDirections
 import org.citron.citron_emu.R
+import org.citron.citron_emu.activities.EmulationActivity
 import org.citron.citron_emu.databinding.CardGameCoverBinding
 import org.citron.citron_emu.databinding.CardGameListBinding
 import org.citron.citron_emu.model.Game
@@ -143,8 +144,7 @@ class GameAdapter(private val activity: AppCompatActivity, private var tilesMode
             }
         }
 
-        val action = HomeNavigationDirections.actionGlobalEmulationActivity(game, true)
-        activity.findNavController(R.id.fragment_container).navigate(action)
+        EmulationActivity.launchInOwnTask(activity, game, custom = true)
     }
 
     private fun handleGameLongClick(game: Game): Boolean {

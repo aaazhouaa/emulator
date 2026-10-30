@@ -3,6 +3,7 @@
 
 package org.citron.citron_emu.ui.main
 
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -32,6 +33,7 @@ import kotlinx.coroutines.launch
 import org.citron.citron_emu.HomeNavigationDirections
 import org.citron.citron_emu.NativeLibrary
 import org.citron.citron_emu.R
+import org.citron.citron_emu.activities.EmulationActivity
 import org.citron.citron_emu.databinding.ActivityMainBinding
 import org.citron.citron_emu.features.settings.model.Settings
 import org.citron.citron_emu.fragments.AddGameFolderDialogFragment
@@ -271,6 +273,37 @@ class MainActivity : AppCompatActivity(), ThemeProvider {
     override fun onResume() {
         ThemeHelper.setCorrectTheme(this)
         super.onResume()
+    }
+
+    /**
+     * The game lives in its own task now, so the launcher icon brings this activity forward even
+     * while a session is still up. Take the user back to that game instead of leaving the library
+     * on screen.
+     *
+     * Only a new intent triggers this. Reacting in onResume would also fire when the user leaves
+     * the game, bouncing them straight back in, and this activity is not recreated by the switch,
+     * so no rescan of the game list is involved.
+     */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        goToRunningGame()
+    }
+
+    private fun goToRunningGame(): Boolean {
+        if (!NativeLibrary.isGameRunning()) {
+            return false
+        }
+        return try {
+            val game = Intent(this, EmulationActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            startActivity(game)
+            true
+        } catch (e: ActivityNotFoundException) {
+            Log.warning("[MainActivity] Could not return to the running game: ${e.message}")
+            false
+        }
     }
 
     private fun setInsets() =
