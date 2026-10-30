@@ -82,3 +82,8 @@ dtrace-out/
 
 # Build patches under patches/ are sources, not local scratch output.
 !patches/*.patch
+
+# Build artifacts and local merge working files
+*.apk
+upstream-merge/
+deleted-tags-backup.txt
