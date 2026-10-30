@@ -63,6 +63,7 @@ import org.citron.citron_emu.utils.MemoryUtil
 import org.citron.citron_emu.utils.NativeConfig
 import org.citron.citron_emu.utils.NfcReader
 import org.citron.citron_emu.utils.ParamPackage
+import org.citron.citron_emu.utils.RecentTaskVisibility
 import org.citron.citron_emu.utils.ThemeHelper
 import java.text.NumberFormat
 import kotlin.math.roundToInt
@@ -538,9 +539,15 @@ class EmulationActivity : AppCompatActivity(), SensorEventListener {
 
     fun onEmulationStarted() {
         emulationViewModel.setEmulationStarted(true)
+        // Called from the emulation thread, and the task list has to be read on the main one.
+        // The game now has its own card in recents; the library's card behind it is only a
+        // detour back to the game, so it steps aside.
+        runOnUiThread { RecentTaskVisibility.hideLibrary() }
     }
 
     fun onEmulationStopped(status: Int) {
+        // No game is running any more, so the library has to be reachable from recents again.
+        runOnUiThread { RecentTaskVisibility.showLibrary() }
         lifecycleScope.launch {
             try {
                 val amiiboResult = AmiiboFileSession.remove(this@EmulationActivity)

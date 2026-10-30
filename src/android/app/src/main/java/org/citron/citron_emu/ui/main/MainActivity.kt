@@ -79,6 +79,9 @@ class MainActivity : AppCompatActivity(), ThemeProvider {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        // Remember which task this is, so a running game can hide the library from recents.
+        RecentTaskVisibility.registerLibraryTask(taskId)
+
         if (savedInstanceState != null) {
             checkedDecryption = savedInstanceState.getBoolean(CHECKED_DECRYPTION)
         }
@@ -272,6 +275,12 @@ class MainActivity : AppCompatActivity(), ThemeProvider {
 
     override fun onResume() {
         ThemeHelper.setCorrectTheme(this)
+        // A session that ended without reporting it - a crash, or the task being dismissed -
+        // would otherwise leave the library hidden from recents for good. Restoring it here is
+        // idempotent and only applies when nothing is running.
+        if (!NativeLibrary.isGameRunning()) {
+            RecentTaskVisibility.showLibrary()
+        }
         super.onResume()
     }
 
