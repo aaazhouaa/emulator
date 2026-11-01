@@ -115,7 +115,7 @@
 
         </LinearLayout>
 
-        <!-- Type and Value in one row: identical Dense style, minHeight and padding -->
+        <!-- Value and Type in one row: identical Dense style, minHeight and padding -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -123,12 +123,35 @@
             android:baselineAligned="false"
             android:orientation="horizontal">
 
+            <!-- Value (leading: it is the field the user types into) -->
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/mem_scan_value_layout"
+                style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="5.8"
+                android:hint="@string/mem_scan_value">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/mem_scan_value"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:minHeight="44dp"
+                    android:inputType="number"
+                    android:paddingTop="8dp"
+                    android:paddingBottom="8dp"
+                    android:singleLine="true"
+                    android:textSize="13sp" />
+
+            </com.google.android.material.textfield.TextInputLayout>
+
             <!-- Type -->
             <com.google.android.material.textfield.TextInputLayout
                 android:id="@+id/mem_scan_type_layout"
                 style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense.ExposedDropdownMenu"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
                 android:layout_weight="4.2"
                 android:hint="@string/mem_scan_type"
                 app:endIconMinSize="36dp">
@@ -141,29 +164,6 @@
                     android:ellipsize="end"
                     android:inputType="none"
                     android:maxLines="1"
-                    android:paddingTop="8dp"
-                    android:paddingBottom="8dp"
-                    android:singleLine="true"
-                    android:textSize="13sp" />
-
-            </com.google.android.material.textfield.TextInputLayout>
-
-            <!-- Value -->
-            <com.google.android.material.textfield.TextInputLayout
-                android:id="@+id/mem_scan_value_layout"
-                style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:layout_weight="5.8"
-                android:hint="@string/mem_scan_value">
-
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/mem_scan_value"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:minHeight="44dp"
-                    android:inputType="number"
                     android:paddingTop="8dp"
                     android:paddingBottom="8dp"
                     android:singleLine="true"

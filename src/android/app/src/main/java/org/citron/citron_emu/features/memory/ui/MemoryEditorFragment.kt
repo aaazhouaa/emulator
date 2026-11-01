@@ -18,6 +18,7 @@ import android.widget.EditText
 import android.widget.Filter
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
+import androidx.core.view.doOnLayout
 import androidx.core.view.updateLayoutParams
 import androidx.core.widget.doAfterTextChanged
 import androidx.fragment.app.DialogFragment
@@ -470,6 +471,22 @@ class MemoryEditorFragment : DialogFragment() {
         updateValueHint()
     }
 
+    /**
+     * Puts the caret in the value field, which is what a tap on it would do: the field gets the
+     * focus, and taking the focus is what slides the built-in keypad up under it.
+     */
+    private fun focusScanValueField() {
+        val field = scanBinding.memScanValue
+        // The keypad's height comes from the panel's, and the panel has no height until it has
+        // been laid out: placed before that, the keypad is shown at the 0dp it starts with and
+        // never gets a height. So the caret waits for a layout that has come through.
+        binding.root.doOnLayout {
+            if (!isAdded) return@doOnLayout
+            field.requestFocus()
+            field.setSelection(field.text?.length ?: 0)
+        }
+    }
+
     private fun setupTableControls() {
         val panel = tableBinding
         panel.memTableClear.setOnClickListener { confirmClearTable() }
@@ -559,8 +576,17 @@ class MemoryEditorFragment : DialogFragment() {
     ) {
         val dialogBinding = DialogMemValueBinding.inflate(layoutInflater)
         dialogBinding.memValueLayout.hint = getString(R.string.mem_freeze_value_title)
-        dialogBinding.memValue.setText(initialValue)
+        // The value the dialog was opened with is shown as the box's grey placeholder instead of
+        // being typed into the field: the field itself starts out empty, so the first key the user
+        // taps begins a new value rather than appending to the old one. An untouched field still
+        // means that value when the dialog is confirmed, below.
+        dialogBinding.memValue.setText("")
+        dialogBinding.memValueLayout.placeholderText = initialValue
         dialogBinding.memValueLayout.error = null
+        // Whether the field was typed into at all tells the two cases apart when confirming: an
+        // untouched field means the placeholder, a field the user emptied on purpose does not.
+        var valueEdited = false
+        dialogBinding.memValue.doAfterTextChanged { valueEdited = true }
 
         dialogBinding.memDescriptionLayout.hint = getString(R.string.mem_freeze_description)
         dialogBinding.memDescription.setText(initialDescription)
@@ -582,7 +608,10 @@ class MemoryEditorFragment : DialogFragment() {
         dialogBinding.memValueCancel.setOnClickListener { dialog.dismiss() }
         dialogBinding.memValueConfirm.setOnClickListener {
             val text = dialogBinding.memValue.text?.toString().orEmpty()
-            val value = viewModel.parseInput(type, text)
+            // The value field starts out empty and shows the value the dialog came with as its
+            // placeholder, so an untouched field confirms that very value. Emptying the field
+            // after typing in it is a value of its own, and an invalid one.
+            val value = viewModel.parseInput(type, if (valueEdited) text else initialValue)
             if (value == null) {
                 dialogBinding.memValueLayout.error = getString(R.string.mem_invalid_value)
                 applyValueFieldHeight(dialogBinding, hasError = true)
@@ -600,6 +629,14 @@ class MemoryEditorFragment : DialogFragment() {
 
         dialog.show()
         positionDialogOnScanPanel(dialog, dialogBinding)
+        // The caret belongs in the value field, with the keypad under it ready to type. Focus is
+        // what makes the placeholder visible at all: while the hint sits expanded inside the box
+        // (empty and unfocused) the placeholder stays hidden, and only its collapse into the notch
+        // uncovers it.
+        dialogBinding.memValue.post {
+            dialogBinding.memValue.requestFocus()
+            dialogBinding.memValue.setSelection(dialogBinding.memValue.text?.length ?: 0)
+        }
         dialogBinding.memKeypad.onCollapse = {
             // Collapsing the keypad is the way out of the dialog: the edit is dropped, the same as
             // cancelling it. The value is not parsed, so an invalid one cannot block the way out.
@@ -794,6 +831,12 @@ class MemoryEditorFragment : DialogFragment() {
         val hasResults = status is MemoryEditorViewModel.ScanStatus.Done ||
             status is MemoryEditorViewModel.ScanStatus.Cancelled
         setRefineMode(hasResults)
+        // Waiting for a value to scan, so the field to type it into takes the caret. A scan in
+        // progress shows the same button, but the value is not what the user is doing then, and
+        // the keypad would come up over the results.
+        if (!hasResults && status !is MemoryEditorViewModel.ScanStatus.Running) {
+            focusScanValueField()
+        }
 
         panel.memScanStatus.text = when (status) {
             is MemoryEditorViewModel.ScanStatus.Idle ->

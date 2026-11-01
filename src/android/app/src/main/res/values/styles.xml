@@ -47,6 +47,14 @@
         <item name="android:dialogCornerRadius">16dp</item>
     </style>
 
+    <!--
+      The grey placeholder in the value dialog stands in for the value that is about to be typed,
+      so it is the size of the field's own text rather than the theme's body large.
+    -->
+    <style name="TextAppearance.Citron.MemValuePlaceholder" parent="TextAppearance.Material3.BodyLarge">
+        <item name="android:textSize">18sp</item>
+    </style>
+
     <!-- Flat keycap used by the value dialog's built-in keypad. -->
     <style name="CitronKey" parent="Widget.Material3.Button.OutlinedButton">
         <item name="android:textColor">@color/citron_primary</item>
